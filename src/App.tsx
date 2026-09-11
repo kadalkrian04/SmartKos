@@ -6,7 +6,7 @@ import {
 import axios from 'axios';
 
 export default function App() {
-  const [view, setView] = useState('login'); // 'login', 'register', 'admin_...', 'resident_...'
+  const [view, setView] = useState('login'); 
   const [currentUser, setCurrentUser] = useState(null);
   
   const [users, setUsers] = useState([]);
@@ -136,16 +136,23 @@ export default function App() {
 
   const handleChooseRoom = async (roomId) => {
     try {
-      await axios.post('/api/users/choose-room', { userId: currentUser.id, roomId });
-      showToast('Berhasil memilih kamar!', 'success');
-      setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
-    } catch (error) { showToast('Gagal memilih kamar', 'error'); }
+      const response = await axios.post('/api/users/choose-room', { userId: currentUser.id, roomId });
+      if (response.data.success) {
+        showToast('Berhasil! Silakan lunasi tagihan untuk mendapatkan akses kamar.', 'success');
+        setCurrentUser({ ...currentUser, room_id: roomId }); 
+        fetchDashboardData();
+      } else {
+        showToast(response.data.message, 'error');
+      }
+    } catch (error) { 
+      showToast('Gagal memproses kamar. Coba lagi.', 'error'); 
+    }
   };
 
   const handleGenerateBills = async () => {
     setIsLoading(true);
     try {
-      await axios.post('/api/bills/generate');
+      await axios.post('/api/bills');
       showToast('Tagihan otomatis dibuat', 'success'); fetchDashboardData();
     } catch (error) { showToast('Gagal membuat tagihan', 'error'); } 
     finally { setIsLoading(false); }
@@ -242,6 +249,25 @@ export default function App() {
           </div>
         )}
 
+        {view === 'admin_users' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
+            <table className="w-full text-left text-sm">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Nama</th><th className="p-4">Username</th><th className="p-4">Kamar</th><th className="p-4">Aktif Sampai</th><th className="p-4">Status Sidik Jari</th></tr></thead>
+                <tbody className="divide-y">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{u.name}</td><td className="p-4 text-slate-500">{u.username}</td>
+                      <td className="p-4">{rooms.find(r => r.id === u.room_id)?.number || 'Belum Pilih'}</td>
+                      <td className="p-4">{u.active_until ? new Date(u.active_until).toLocaleDateString() : '-'}</td>
+                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${u.is_fingerprint_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.is_fingerprint_active ? 'TERDAFTAR' : 'TERKUNCI'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
+          </div>
+        )}
+
         {view === 'admin_rooms' && (
           <div className="space-y-4">
             <button onClick={() => setRoomModal({ type: 'add', data: {} })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Tambah Kamar Baru</button>
@@ -282,10 +308,10 @@ export default function App() {
                 <tbody className="divide-y">
                   {bills.map(b => (
                     <tr key={b.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">User #{b.user_id}</td><td className="p-4 font-mono text-xs">{b.ref_id}</td>
+                      <td className="p-4 font-bold">{users.find(u => u.id === b.user_id)?.name || `User #${b.user_id}`}</td><td className="p-4 font-mono text-xs">{b.ref_id}</td>
                       <td className="p-4 font-bold text-red-600">Rp {b.nominal.toLocaleString()}</td>
                       <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'lunas' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{b.status}</span></td>
-                      <td className="p-4">{b.due_date}</td>
+                      <td className="p-4">{new Date(b.due_date).toLocaleDateString()}</td>
                       <td className="p-4">
                         {b.status === 'pending' && <button onClick={() => setBillModal(b)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-bold">Edit Nominal</button>}
                       </td>
@@ -294,6 +320,24 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {view === 'admin_logs' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <h3 className="font-bold mb-6 text-lg">Log Buka Pintu (Fingerprint)</h3>
+            <table className="w-full text-left text-sm">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
+                <tbody className="divide-y">
+                  {logs.map(l => (
+                    <tr key={l.id} className="hover:bg-slate-50">
+                      <td className="p-4 whitespace-nowrap">{new Date(l.timestamp).toLocaleString()}</td>
+                      <td className="p-4 font-bold">{users.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
+                      <td className="p-4 text-slate-600">{l.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
           </div>
         )}
 
@@ -310,7 +354,7 @@ export default function App() {
                 <input type="password" name="secret_key" defaultValue={settings.tokopay_secret_key} className="w-full p-3 border rounded-lg bg-slate-50" required />
               </div>
               <div className="pt-4 border-t border-slate-100">
-                <p className="text-xs text-slate-500 mb-4">Pastikan kamu mendaftarkan URL Callback Tokopay kamu ke: <br/><strong className="text-blue-600">https://domain-kamu.vercel.app/api/payment/callback</strong></p>
+                <p className="text-xs text-slate-500 mb-4">Pastikan kamu mendaftarkan URL Callback Tokopay kamu ke: <br/><strong className="text-blue-600">https://smart-kos-two.vercel.app/api/payment/callback</strong></p>
                 <button type="submit" className="bg-slate-800 text-white px-6 py-3 rounded-lg font-bold flex items-center hover:bg-slate-900"><Save size={18} className="mr-2"/> Simpan Konfigurasi</button>
               </div>
             </form>
@@ -345,9 +389,14 @@ export default function App() {
   );
 
   const renderResident = () => {
+    // Tampilan jika penghuni baru belum punya kamar
     if (!currentUser.room_id) {
       return (
         <div className="min-h-screen bg-slate-100 p-8">
+          <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
+             <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
+             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={16} className="mr-2"/> Keluar Akun</button>
+          </nav>
           <div className="max-w-4xl mx-auto">
              <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
                <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser.name}!</h2>
@@ -363,7 +412,7 @@ export default function App() {
                  </div>
                ))}
                {rooms.filter(r => r.status === 'available').length === 0 && (
-                 <div className="col-span-3 text-center p-8 text-slate-500">Maaf, saat ini tidak ada kamar kosong yang tersedia.</div>
+                 <div className="col-span-3 text-center p-8 text-slate-500 bg-white rounded-xl border">Maaf, saat ini tidak ada kamar kosong yang tersedia.</div>
                )}
              </div>
           </div>
@@ -371,54 +420,102 @@ export default function App() {
       );
     }
 
+    // Tampilan jika sudah punya kamar
     const myBills = bills.filter(b => b.user_id === currentUser.id);
     const pendingBill = myBills.find(b => b.status === 'pending');
+    const historyBills = myBills.filter(b => b.status === 'lunas'); // Tarik data yang sudah lunas
     const isActive = currentUser.is_fingerprint_active;
 
     return (
-      <div className="min-h-screen bg-slate-50">
-        <nav className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        {/* Navbar Atas */}
+        <nav className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-1 rounded"><LogOut size={16} className="mr-2"/> Keluar</button>
+          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={18} className="mr-2"/> Keluar</button>
         </nav>
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Akses Pintu Kamar</h3>
-              <div className="pt-4 text-center">
-                {isActive ? (
-                  <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
-                    <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
-                    <div className="font-black text-lg">AKSES AKTIF</div>
-                    <p className="text-sm mt-1">Silakan tempel sidik jari di pintu kamar.</p>
+
+        {/* Tab Navigasi Menu User */}
+        <div className="bg-white border-b px-6 flex space-x-2 md:space-x-6 justify-center text-sm font-bold shadow-sm">
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda (Tagihan)</button>
+           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+        </div>
+
+        <div className="max-w-4xl mx-auto p-6 w-full flex-1 space-y-6">
+          {/* TAB 1: BERANDA / HOME */}
+          {view === 'resident_dashboard' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Kartu Akses Fingerprint */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Akses Pintu Kamar</h3>
+                  <div className="pt-4 text-center flex-1 flex flex-col justify-center">
+                    {isActive ? (
+                      <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
+                        <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
+                        <div className="font-black text-lg">AKSES DIBUKA</div>
+                        <p className="text-sm mt-2">Status kamar Anda Aktif! Silakan menuju ke pintu kamar Anda untuk <strong>mendaftarkan sidik jari</strong> pada mesin jika belum.</p>
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
+                        <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
+                        <div className="font-black text-lg">AKSES TERKUNCI</div>
+                        <p className="text-sm mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar sensor sidik jari kembali aktif.</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
-                    <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
-                    <div className="font-black text-lg">AKSES TERKUNCI</div>
-                    <p className="text-sm mt-1">Akses dicabut otomatis. Harap lunasi tagihan bulan ini.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan QRIS</h3>
-              {pendingBill ? (
-                <div className="text-center pt-4">
-                  <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
-                  <h2 className="text-4xl font-black text-slate-800 my-4">Rp {pendingBill.nominal.toLocaleString()}</h2>
-                  <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {pendingBill.due_date}</p>
-                  <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
                 </div>
-              ) : (
-                <div className="text-center pt-8">
-                  <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
-                  <span className="text-green-700 font-bold text-lg">Semua Tagihan Lunas</span>
-                  <p className="text-slate-500 mt-2 text-sm">Terima kasih telah membayar tepat waktu.</p>
+
+                {/* Kartu Cek Tagihan */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
+                  {pendingBill ? (
+                    <div className="text-center pt-4 flex-1 flex flex-col justify-center">
+                      <div>
+                        <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
+                        <h2 className="text-4xl font-black text-slate-800 my-4">Rp {pendingBill.nominal.toLocaleString()}</h2>
+                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {new Date(pendingBill.due_date).toLocaleDateString()}</p>
+                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center pt-8 flex-1 flex flex-col justify-center">
+                      <div>
+                        <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                        <span className="text-green-700 font-black text-xl block">Semua Tagihan Lunas</span>
+                        <p className="text-slate-500 mt-2 text-sm">Terima kasih telah membayar tepat waktu.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+             </div>
+          )}
+
+          {/* TAB 2: RIWAYAT PEMBAYARAN */}
+          {view === 'resident_history' && (
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+               <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
+               {historyBills.length > 0 ? (
+                 <div className="overflow-x-auto rounded-lg border border-slate-200">
+                   <table className="w-full text-left text-sm whitespace-nowrap">
+                     <thead className="bg-slate-100"><tr><th className="p-4">Bulan Tagihan</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Status</th></tr></thead>
+                     <tbody className="divide-y divide-slate-100">
+                       {historyBills.map(b => (
+                         <tr key={b.id} className="hover:bg-slate-50">
+                           <td className="p-4">{b.month}</td>
+                           <td className="p-4 font-mono text-xs text-slate-500">{b.ref_id}</td>
+                           <td className="p-4 font-bold text-slate-800">Rp {b.nominal.toLocaleString()}</td>
+                           <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               ) : (
+                 <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                   Belum ada riwayat pembayaran yang tercatat.
+                 </div>
+               )}
+             </div>
+          )}
         </div>
 
         {/* Modal QRIS Resident */}
