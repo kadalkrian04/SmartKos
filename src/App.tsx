@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, Users, DoorOpen, CreditCard, Settings, LogOut, 
-  CheckCircle, XCircle, Fingerprint, Activity, FileText, Bell, Plus, Edit, Trash2, RefreshCcw, Save, ShieldCheck
+  CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, Save, ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -15,6 +15,7 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [settings, setSettings] = useState({ tokopay_merchant_id: '', tokopay_secret_key: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [isScanningFP, setIsScanningFP] = useState(false); // State Animasi Sidik Jari
   
   const [toast, setToast] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
@@ -27,7 +28,7 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isManual = false) => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
@@ -36,9 +37,19 @@ export default function App() {
            axios.get('/api/users'), axios.get('/api/rooms'), axios.get('/api/bills'), axios.get('/api/logs'), axios.get('/api/settings')
          ]);
          setUsers(resUsers.data); setRooms(resRooms.data); setBills(resBills.data); setLogs(resLogs.data); setSettings(resSettings.data);
+         if (isManual) showToast('Data berhasil diperbarui', 'success');
       } else {
          const [resRooms, resBills] = await Promise.all([axios.get('/api/rooms'), axios.get('/api/bills')]);
          setRooms(resRooms.data); setBills(resBills.data);
+         
+         // Cek apakah kamar di-cancel otomatis karena expired 10 menit
+         const myBill = resBills.data.find(b => b.user_id === currentUser.id);
+         if (!myBill && currentUser.active_until === null && currentUser.room_id) {
+             setCurrentUser({...currentUser, room_id: null});
+             showToast('Waktu pembayaran habis (10 Menit). Kamar dibatalkan otomatis.', 'error');
+         } else if (isManual) {
+             showToast('Data berhasil diperbarui', 'success');
+         }
       }
     } catch (error) {
       showToast('Gagal memuat data.', 'error');
@@ -65,11 +76,8 @@ export default function App() {
       } else {
         showToast(response.data.message, 'error');
       }
-    } catch (error) {
-      showToast('Koneksi server gagal.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { showToast('Koneksi server gagal.', 'error'); } 
+    finally { setIsLoading(false); }
   };
 
   const handleRegister = async (e) => {
@@ -82,14 +90,9 @@ export default function App() {
       if (response.data.success) {
         showToast('Pendaftaran berhasil! Silakan login.', 'success');
         setView('login');
-      } else {
-        showToast(response.data.message, 'error');
-      }
-    } catch (error) {
-      showToast('Gagal mendaftar akun.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
+      } else { showToast(response.data.message, 'error'); }
+    } catch (error) { showToast('Gagal mendaftar akun.', 'error'); } 
+    finally { setIsLoading(false); }
   };
 
   const logout = () => { setCurrentUser(null); setView('login'); };
@@ -102,8 +105,7 @@ export default function App() {
     try {
       if (roomModal.type === 'add') await axios.post('/api/rooms', payload);
       else await axios.put(`/api/rooms?id=${roomModal.data.id}`, payload);
-      showToast('Data kamar disimpan', 'success');
-      setRoomModal(null); fetchDashboardData();
+      showToast('Data kamar disimpan', 'success'); setRoomModal(null); fetchDashboardData();
     } catch (error) { showToast('Gagal menyimpan kamar', 'error'); } 
     finally { setIsLoading(false); }
   };
@@ -127,33 +129,40 @@ export default function App() {
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/settings', { 
-        merchant_id: e.target.merchant_id.value, secret_key: e.target.secret_key.value 
-      });
+      await axios.post('/api/settings', { merchant_id: e.target.merchant_id.value, secret_key: e.target.secret_key.value });
       showToast('Setting API TokoPay tersimpan', 'success'); fetchDashboardData();
     } catch (error) { showToast('Gagal simpan setting', 'error'); }
+  };
+
+  // FUNGSI BARU: Test Koneksi TokoPay
+  const handleTestTokoPay = async () => {
+    showToast('Menghubungi Server TokoPay...', 'info');
+    try {
+      const response = await axios.get('/api/payment/test');
+      if (response.data.success) {
+        showToast(response.data.message, 'success');
+      } else {
+        showToast(response.data.message, 'error');
+      }
+    } catch (error) {
+      showToast('Error koneksi API TokoPay', 'error');
+    }
   };
 
   const handleChooseRoom = async (roomId) => {
     try {
       const response = await axios.post('/api/users/choose-room', { userId: currentUser.id, roomId });
       if (response.data.success) {
-        showToast('Berhasil! Silakan lunasi tagihan untuk mendapatkan akses kamar.', 'success');
-        setCurrentUser({ ...currentUser, room_id: roomId }); 
-        fetchDashboardData();
-      } else {
-        showToast(response.data.message, 'error');
-      }
-    } catch (error) { 
-      showToast('Gagal memproses kamar. Coba lagi.', 'error'); 
-    }
+        showToast('Kamar dipesan! Segera lunasi dalam waktu 10 Menit.', 'success');
+        setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
+      } else { showToast(response.data.message, 'error'); }
+    } catch (error) { showToast('Gagal memproses kamar. Coba lagi.', 'error'); }
   };
 
   const handleGenerateBills = async () => {
     setIsLoading(true);
     try {
-      await axios.post('/api/bills');
-      showToast('Tagihan otomatis dibuat', 'success'); fetchDashboardData();
+      await axios.post('/api/bills'); showToast('Tagihan otomatis dibuat', 'success'); fetchDashboardData();
     } catch (error) { showToast('Gagal membuat tagihan', 'error'); } 
     finally { setIsLoading(false); }
   };
@@ -173,6 +182,23 @@ export default function App() {
       if (response.data.success) setQrisData(response.data.qr_url);
       else showToast('Gagal koneksi TokoPay', 'error');
     } catch (error) { showToast('Error API TokoPay', 'error'); }
+  };
+
+  // FUNGSI BARU: Daftar Sidik Jari (Simulasi Hardware)
+  const handleRegisterFingerprint = async () => {
+    setIsScanningFP(true);
+    setTimeout(async () => {
+      try {
+        const response = await axios.post('/api/users/fingerprint', { userId: currentUser.id });
+        if(response.data.success) {
+           setCurrentUser({...currentUser, fingerprint_id: response.data.fingerprint_id});
+           showToast(response.data.message, 'success');
+        } else {
+           showToast(response.data.message, 'error');
+        }
+      } catch (error) { showToast('Gagal terhubung dengan mesin pintu.', 'error'); }
+      finally { setIsScanningFP(false); }
+    }, 3000); // Simulasi proses baca sidik jari 3 detik
   };
 
   const renderAuth = () => (
@@ -230,8 +256,9 @@ export default function App() {
 
       <div className="flex-1 p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800">Sistem Pusat Admin</h2>
-          <button onClick={fetchDashboardData} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg"><RefreshCcw size={16} className="mr-2"/> Refresh</button>
+          <h2 className="text-xl font-bold text-slate-800">Manajemen Kos</h2>
+          {/* Tombol Refresh yang sudah diperbaiki */}
+          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold"><RefreshCcw size={16} className={`mr-2 ${isLoading && 'animate-spin'}`}/> Segarkan Data</button>
         </div>
 
         {view === 'admin_dashboard' && (
@@ -299,7 +326,7 @@ export default function App() {
         {view === 'admin_bills' && (
           <div className="space-y-4">
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl mb-4 text-sm text-yellow-800">
-               <span className="font-bold">Info Sistem:</span> Tagihan otomatis mengunci sidik jari penghuni jika belum lunas &gt; 7 hari dari tanggal rilis.
+               <span className="font-bold">Info Sistem:</span> Tagihan otomatis mengunci sidik jari penghuni jika belum lunas &gt; 7 hari dari tanggal rilis. User baru yg tidak bayar dalam 10 menit otomatis dibatalkan.
             </div>
             <button onClick={handleGenerateBills} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Generate Tagihan Bulan Ini</button>
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -344,7 +371,7 @@ export default function App() {
         {view === 'admin_settings' && (
           <div className="max-w-2xl bg-white p-8 rounded-xl shadow-sm border">
             <h3 className="text-lg font-bold mb-6 flex items-center"><ShieldCheck className="mr-2 text-blue-600"/> Konfigurasi API TokoPay (QRIS)</h3>
-            <form onSubmit={handleSaveSettings} className="space-y-4">
+            <form onSubmit={handleSaveSettings} className="space-y-4 mb-8">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Merchant ID</label>
                 <input type="text" name="merchant_id" defaultValue={settings.tokopay_merchant_id} className="w-full p-3 border rounded-lg bg-slate-50" required />
@@ -353,11 +380,19 @@ export default function App() {
                 <label className="block text-sm font-bold text-slate-700 mb-1">Secret Key</label>
                 <input type="password" name="secret_key" defaultValue={settings.tokopay_secret_key} className="w-full p-3 border rounded-lg bg-slate-50" required />
               </div>
-              <div className="pt-4 border-t border-slate-100">
+              <div className="pt-4">
                 <p className="text-xs text-slate-500 mb-4">Pastikan kamu mendaftarkan URL Callback Tokopay kamu ke: <br/><strong className="text-blue-600">https://smart-kos-two.vercel.app/api/payment/callback</strong></p>
                 <button type="submit" className="bg-slate-800 text-white px-6 py-3 rounded-lg font-bold flex items-center hover:bg-slate-900"><Save size={18} className="mr-2"/> Simpan Konfigurasi</button>
               </div>
             </form>
+
+            <div className="pt-6 border-t border-slate-200">
+               <h4 className="font-bold mb-2">Uji Coba Sistem Pembayaran</h4>
+               <p className="text-sm text-slate-600 mb-4">Klik tombol di bawah ini untuk memastikan sistem Vercel berhasil membuat QRIS dari TokoPay.</p>
+               <button onClick={handleTestTokoPay} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center shadow hover:bg-green-700 transition">
+                  <Activity size={18} className="mr-2"/> Test Koneksi TokoPay
+               </button>
+            </div>
           </div>
         )}
 
@@ -401,6 +436,7 @@ export default function App() {
              <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
                <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser.name}!</h2>
                <p className="text-slate-600">Silakan pilih kamar kosong di bawah ini untuk mulai menyewa.</p>
+               <p className="text-sm text-red-500 font-bold mt-2 bg-red-50 inline-block px-3 py-1 rounded">*Kamar yang tidak dibayar dalam 10 Menit akan dibatalkan otomatis.</p>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                {rooms.filter(r => r.status === 'available').map(room => (
@@ -423,7 +459,7 @@ export default function App() {
     // Tampilan jika sudah punya kamar
     const myBills = bills.filter(b => b.user_id === currentUser.id);
     const pendingBill = myBills.find(b => b.status === 'pending');
-    const historyBills = myBills.filter(b => b.status === 'lunas'); // Tarik data yang sudah lunas
+    const historyBills = myBills.filter(b => b.status === 'lunas'); 
     const isActive = currentUser.is_fingerprint_active;
 
     return (
@@ -436,7 +472,8 @@ export default function App() {
 
         {/* Tab Navigasi Menu User */}
         <div className="bg-white border-b px-6 flex space-x-2 md:space-x-6 justify-center text-sm font-bold shadow-sm">
-           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda (Tagihan)</button>
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
+           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
            <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
         </div>
 
@@ -444,26 +481,6 @@ export default function App() {
           {/* TAB 1: BERANDA / HOME */}
           {view === 'resident_dashboard' && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Kartu Akses Fingerprint */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Akses Pintu Kamar</h3>
-                  <div className="pt-4 text-center flex-1 flex flex-col justify-center">
-                    {isActive ? (
-                      <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
-                        <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
-                        <div className="font-black text-lg">AKSES DIBUKA</div>
-                        <p className="text-sm mt-2">Status kamar Anda Aktif! Silakan menuju ke pintu kamar Anda untuk <strong>mendaftarkan sidik jari</strong> pada mesin jika belum.</p>
-                      </div>
-                    ) : (
-                      <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
-                        <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
-                        <div className="font-black text-lg">AKSES TERKUNCI</div>
-                        <p className="text-sm mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar sensor sidik jari kembali aktif.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Kartu Cek Tagihan */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                   <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
@@ -486,10 +503,66 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Kartu Status Kamar */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Status Kamar Anda</h3>
+                  <div className="pt-4 text-center flex-1 flex flex-col justify-center">
+                    {isActive ? (
+                      <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
+                        <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
+                        <div className="font-black text-lg">KAMAR AKTIF</div>
+                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{new Date(currentUser.active_until).toLocaleDateString()}</strong></p>
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
+                        <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
+                        <div className="font-black text-lg">AKSES TERKUNCI</div>
+                        <p className="text-sm mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar kamar dan sidik jari kembali aktif.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
              </div>
           )}
 
-          {/* TAB 2: RIWAYAT PEMBAYARAN */}
+          {/* TAB 2: PENDAFTARAN SIDIK JARI */}
+          {view === 'resident_fingerprint' && (
+             <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
+                <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Pendaftaran Sidik Jari</h3>
+                {!isActive ? (
+                    <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
+                      <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
+                      <p className="font-bold">Akses Ditolak</p>
+                      <p className="text-sm mt-2">Anda belum bisa mendaftar sidik jari. Silakan lunasi tagihan sewa kamar Anda terlebih dahulu pada menu Beranda.</p>
+                    </div>
+                ) : currentUser.fingerprint_id ? (
+                    <div className="p-6">
+                       <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                       <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Terdaftar</h4>
+                       <p className="text-slate-500 mt-2">ID Sensor Anda: <span className="font-mono bg-slate-100 p-2 rounded text-slate-800 font-bold">{currentUser.fingerprint_id}</span></p>
+                       <p className="text-sm mt-6 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">Anda sudah bisa membuka pintu kamar menggunakan sidik jari Anda.</p>
+                    </div>
+                ) : (
+                    <div className="p-6 flex flex-col items-center">
+                       <Fingerprint size={80} className={`mb-6 ${isScanningFP ? 'text-blue-500 animate-pulse' : 'text-slate-300'}`} />
+                       {isScanningFP ? (
+                           <div className="text-blue-600">
+                             <p className="font-bold text-lg mb-2">Memindai...</p>
+                             <p className="text-sm">Tahan jari Anda pada sensor pintu kamar.</p>
+                           </div>
+                       ) : (
+                           <>
+                             <p className="text-slate-600 mb-8 font-medium">Letakkan jari Anda pada sensor mesin di pintu kamar untuk mendaftarkan akses masuk.</p>
+                             <button onClick={handleRegisterFingerprint} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-1 transition transform">Mulai Pindai Sidik Jari</button>
+                           </>
+                       )}
+                    </div>
+                )}
+             </div>
+          )}
+
+          {/* TAB 3: RIWAYAT PEMBAYARAN */}
           {view === 'resident_history' && (
              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
@@ -527,8 +600,8 @@ export default function App() {
               <div className="bg-slate-100 p-2 rounded-xl mb-6 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
                  {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2"/> Memproses QR...</div>}
               </div>
-              <p className="text-xs text-slate-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">Akses sidik jari akan otomatis aktif setelah pembayaran berhasil.</p>
-              <button onClick={() => {setPaymentModal(null); fetchDashboardData();}} className="w-full bg-slate-200 text-slate-800 py-3 rounded-lg font-bold hover:bg-slate-300">Tutup & Cek Status</button>
+              <p className="text-xs text-slate-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">Akses sidik jari dan kamar akan otomatis aktif setelah pembayaran berhasil.</p>
+              <button onClick={() => {setPaymentModal(null); fetchDashboardData(true);}} className="w-full bg-slate-200 text-slate-800 py-3 rounded-lg font-bold hover:bg-slate-300">Tutup & Cek Status</button>
             </div>
           </div>
         )}
