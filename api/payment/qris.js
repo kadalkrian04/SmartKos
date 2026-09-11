@@ -13,14 +13,20 @@ export default async function handler(req, res) {
       if(r.key_name === 'tokopay_secret_key') secret = r.key_value;
     });
 
-    // Menembak API TokoPay sesuai dokumentasi/script dari user
-    const url = `https://api.tokopay.id/v1/order?merchant=${merchant}&secret=${secret}&ref_id=${refId}&nominal=${nominal}&metode=QRIS`;
+    // SOLUSI ERROR: Ubah string desimal dari database (contoh: "850000.00") 
+    // menjadi angka bulat (850000) karena TokoPay menolak nominal berdesimal.
+    const nominalBulat = Math.round(Number(nominal));
+
+    // Menembak API TokoPay dengan nominal bulat
+    const url = `https://api.tokopay.id/v1/order?merchant=${merchant}&secret=${secret}&ref_id=${refId}&nominal=${nominalBulat}&metode=QRIS`;
     const { data } = await axios.get(url);
     
+    // Cek apakah TokoPay membalas dengan link gambar QRIS
     if (data && data.data && data.data.qr_link) {
        res.status(200).json({ success: true, qr_url: data.data.qr_link });
     } else {
-       res.status(200).json({ success: false, message: 'QR gagal diproses TokoPay' });
+       // Jika gagal, tampilkan pesan error dari TokoPay ke terminal/jaringan
+       res.status(200).json({ success: false, message: data.error_msg || 'QR gagal diproses TokoPay' });
     }
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
