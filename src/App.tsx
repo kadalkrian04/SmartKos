@@ -1,29 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Home, Users, DoorOpen, CreditCard, Settings, LogOut, 
+  Users, DoorOpen, CreditCard, Settings, LogOut, 
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, Save, ShieldCheck, History, Cpu, Wifi
 } from 'lucide-react';
 import axios from 'axios';
 
 export default function App() {
   const [view, setView] = useState('login'); 
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
-  const [users, setUsers] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [settings, setSettings] = useState({ tokopay_merchant_id: '', tokopay_secret_key: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isScanningFP, setIsScanningFP] = useState(false);
   
-  const [toast, setToast] = useState(null);
-  const [paymentModal, setPaymentModal] = useState(null);
-  const [qrisData, setQrisData] = useState(null);
-  const [roomModal, setRoomModal] = useState(null);
-  const [billModal, setBillModal] = useState(null);
+  const [toast, setToast] = useState<{msg: string, type: string} | null>(null);
+  const [paymentModal, setPaymentModal] = useState<any>(null);
+  const [qrisData, setQrisData] = useState<string | null>(null);
+  const [roomModal, setRoomModal] = useState<any>(null);
+  const [billModal, setBillModal] = useState<any>(null);
 
-  const showToast = (msg, type = 'info') => {
+  const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -42,7 +42,7 @@ export default function App() {
          const [resRooms, resBills] = await Promise.all([axios.get('/api/rooms'), axios.get('/api/bills')]);
          setRooms(resRooms.data); setBills(resBills.data);
          
-         const myBill = resBills.data.find(b => b.user_id === currentUser.id);
+         const myBill = resBills.data.find((b: any) => b.user_id === currentUser.id);
          if (!myBill && currentUser.active_until === null && currentUser.room_id) {
              setCurrentUser({...currentUser, room_id: null});
              showToast('Waktu pembayaran habis (10 Menit). Kamar dibatalkan otomatis.', 'error');
@@ -61,7 +61,7 @@ export default function App() {
     if (view !== 'login' && view !== 'register') fetchDashboardData();
   }, [view]);
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
     try {
@@ -79,7 +79,7 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const handleRegister = async (e) => {
+  const handleRegister = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
     try {
@@ -96,10 +96,10 @@ export default function App() {
 
   const logout = () => { setCurrentUser(null); setView('login'); };
 
-  const handleSaveRoom = async (e) => {
+  const handleSaveRoom = async (e: any) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const payload = { number: fd.get('number'), name: fd.get('name'), price: parseInt(fd.get('price'), 10) };
+    const payload = { number: fd.get('number'), name: fd.get('name'), price: parseInt(fd.get('price') as string, 10) };
     setIsLoading(true);
     try {
       if (roomModal.type === 'add') await axios.post('/api/rooms', payload);
@@ -109,15 +109,17 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const handleDeleteRoom = async (id) => {
+  const handleDeleteRoom = async (id: number) => {
     if(!window.confirm('Yakin hapus kamar ini?')) return;
     try {
       await axios.delete(`/api/rooms?id=${id}`);
       showToast('Kamar dihapus', 'success'); fetchDashboardData();
-    } catch (error) { showToast('Kamar sedang dihuni', 'error'); }
+    } catch (error: any) { 
+      showToast(error.response?.data?.message || 'Gagal menghapus kamar', 'error'); 
+    }
   };
 
-  const handleToggleRoomFingerprint = async (id, currentStatus) => {
+  const handleToggleRoomFingerprint = async (id: number, currentStatus: boolean) => {
     try {
       await axios.put(`/api/rooms?id=${id}`, { fingerprint_status: !currentStatus });
       fetchDashboardData();
@@ -125,7 +127,7 @@ export default function App() {
     } catch (error) { showToast('Gagal update hardware', 'error'); }
   };
 
-  const handleDeleteHistory = async (id) => {
+  const handleDeleteHistory = async (id: number) => {
     if(!window.confirm('Yakin ingin menghapus riwayat pembayaran lunas ini secara manual?')) return;
     try {
       await axios.delete(`/api/bills?id=${id}`);
@@ -134,7 +136,18 @@ export default function App() {
     } catch (error) { showToast('Gagal menghapus riwayat', 'error'); }
   };
 
-  const handleSaveDevice = async (roomId, deviceId) => {
+  const handleClearLogs = async () => {
+    if(!window.confirm('Yakin ingin menghapus SEMUA catatan log pintu?')) return;
+    setIsLoading(true);
+    try {
+      await axios.delete('/api/logs');
+      showToast('Semua log berhasil dibersihkan', 'success');
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal membersihkan log', 'error'); }
+    finally { setIsLoading(false); }
+  };
+
+  const handleSaveDevice = async (roomId: number, deviceId: string) => {
     setIsLoading(true);
     try {
       await axios.put(`/api/rooms?id=${roomId}`, { device_id: deviceId });
@@ -144,7 +157,7 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const handleSaveSettings = async (e) => {
+  const handleSaveSettings = async (e: any) => {
     e.preventDefault();
     try {
       await axios.post('/api/settings', { merchant_id: e.target.merchant_id.value, secret_key: e.target.secret_key.value });
@@ -161,7 +174,7 @@ export default function App() {
     } catch (error) { showToast('Error koneksi API TokoPay', 'error'); }
   };
 
-  const handleChooseRoom = async (roomId) => {
+  const handleChooseRoom = async (roomId: number) => {
     try {
       const response = await axios.post('/api/users/choose-room', { userId: currentUser.id, roomId });
       if (response.data.success) {
@@ -179,7 +192,7 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const handleEditBill = async (e) => {
+  const handleEditBill = async (e: any) => {
     e.preventDefault();
     try {
       await axios.put(`/api/bills?id=${billModal.id}`, { nominal: e.target.nominal.value });
@@ -187,7 +200,7 @@ export default function App() {
     } catch (error) { showToast('Gagal update', 'error'); }
   };
 
-  const handleSetLunasManual = async (billId, userId) => {
+  const handleSetLunasManual = async (billId: number, userId: number) => {
     if(!window.confirm('TokoPay Error? Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
     setIsLoading(true);
     try {
@@ -198,19 +211,17 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const handlePayQRIS = async (bill) => {
+  const handlePayQRIS = async (bill: any) => {
     setPaymentModal(bill); setQrisData(null);
     try {
       const response = await axios.post('/api/payment/qris', { refId: bill.ref_id, nominal: bill.nominal });
       if (response.data.success) {
         setQrisData(response.data.qr_url);
-        // Memperbarui Ref ID di UI agar sesuai dengan yang dikirim ke TokoPay
         if(response.data.new_ref_id) {
            setPaymentModal({...bill, ref_id: response.data.new_ref_id});
            fetchDashboardData();
         }
       } else {
-        // Menampilkan pesan error ASLI dan menutup modal
         showToast(response.data.message || 'Gagal koneksi TokoPay', 'error');
         setPaymentModal(null);
       }
@@ -438,7 +449,7 @@ export default function App() {
                       
                       <div className="flex-1">
                          <label className="text-xs font-bold text-slate-600 block mb-2">Device ID / IP Address</label>
-                         <form onSubmit={(e) => { e.preventDefault(); handleSaveDevice(r.id, e.target.device_id.value); }} className="flex gap-2">
+                         <form onSubmit={(e: any) => { e.preventDefault(); handleSaveDevice(r.id, e.target.device_id.value); }} className="flex gap-2">
                            <input type="text" name="device_id" defaultValue={r.device_id || ''} placeholder="Ex: 192.168.1.10" className="flex-1 p-2 text-sm border rounded bg-slate-50 outline-none focus:border-blue-400" />
                            <button type="submit" className="bg-slate-800 text-white px-3 py-2 rounded text-sm font-bold hover:bg-slate-900 transition">Save</button>
                          </form>
@@ -458,7 +469,13 @@ export default function App() {
 
         {view === 'admin_logs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-bold mb-6 text-lg">Log Buka Pintu (Fingerprint)</h3>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+               <h3 className="font-bold text-lg flex items-center"><FileText className="mr-2 text-blue-600"/> Log Buka Pintu (Fingerprint)</h3>
+               <div className="flex gap-2 items-center">
+                 <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg font-medium">Log &gt; 7 Hari terhapus otomatis</span>
+                 <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
+               </div>
+            </div>
             <table className="w-full text-left text-sm">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
                 <tbody className="divide-y">
@@ -469,6 +486,9 @@ export default function App() {
                       <td className="p-4 text-slate-600">{l.action}</td>
                     </tr>
                   ))}
+                  {logs.length === 0 && (
+                    <tr><td colSpan="3" className="p-8 text-center text-slate-500">Tidak ada log yang tersimpan.</td></tr>
+                  )}
                 </tbody>
             </table>
           </div>

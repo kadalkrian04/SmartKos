@@ -40,15 +40,12 @@ export default async function handler(req, res) {
       const id = req.query.id;
       const { number, name, price, fingerprint_status, device_id } = req.body;
       
-      // Jika request berupa penyimpanan device_id alat fingerprint
       if (device_id !== undefined) {
           await sql`UPDATE rooms SET device_id = ${device_id} WHERE id = ${id}`;
       } 
-      // Jika request berupa toggle on/off hardware
       else if (fingerprint_status !== undefined) {
           await sql`UPDATE rooms SET fingerprint_status = ${fingerprint_status} WHERE id = ${id}`;
       } 
-      // Jika request berupa edit data kamar biasa
       else {
           await sql`UPDATE rooms SET number = ${number}, name = ${name}, price = ${price} WHERE id = ${id}`;
       }
@@ -56,7 +53,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      await sql`DELETE FROM rooms WHERE id = ${req.query.id} AND status = 'available'`;
+      const { id } = req.query;
+      // 1. Lepaskan (Set NULL) semua user yang kamarnya mengarah ke ID ini supaya tidak error Foreign Key
+      await sql`UPDATE users SET room_id = NULL WHERE room_id = ${id}`;
+      // 2. Baru deh kamarnya dihancurkan
+      await sql`DELETE FROM rooms WHERE id = ${id}`;
       return res.status(200).json({ success: true });
     }
   } catch (error) { res.status(500).json({ message: error.message }); }
