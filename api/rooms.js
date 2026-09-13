@@ -3,8 +3,6 @@ import { sql } from '@vercel/postgres';
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      // PROSES OTOMATIS: AUTO-CANCEL 10 MENIT
-      // Membatalkan user baru yang tidak melunasi tagihan awal selama > 10 menit
       try {
         await sql`
           UPDATE rooms SET status = 'available', resident_id = NULL
@@ -37,16 +35,26 @@ export default async function handler(req, res) {
       await sql`INSERT INTO rooms (number, name, price) VALUES (${number}, ${name}, ${price})`;
       return res.status(200).json({ success: true });
     }
+
     if (req.method === 'PUT') {
       const id = req.query.id;
-      const { number, name, price, fingerprint_status } = req.body;
-      if (fingerprint_status !== undefined) {
+      const { number, name, price, fingerprint_status, device_id } = req.body;
+      
+      // Jika request berupa penyimpanan device_id alat fingerprint
+      if (device_id !== undefined) {
+          await sql`UPDATE rooms SET device_id = ${device_id} WHERE id = ${id}`;
+      } 
+      // Jika request berupa toggle on/off hardware
+      else if (fingerprint_status !== undefined) {
           await sql`UPDATE rooms SET fingerprint_status = ${fingerprint_status} WHERE id = ${id}`;
-      } else {
+      } 
+      // Jika request berupa edit data kamar biasa
+      else {
           await sql`UPDATE rooms SET number = ${number}, name = ${name}, price = ${price} WHERE id = ${id}`;
       }
       return res.status(200).json({ success: true });
     }
+
     if (req.method === 'DELETE') {
       await sql`DELETE FROM rooms WHERE id = ${req.query.id} AND status = 'available'`;
       return res.status(200).json({ success: true });
