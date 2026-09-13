@@ -2,40 +2,28 @@ import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   try {
-    // 1. Ambil data dari TokoPay (bisa POST atau GET)
     let payload = req.method === 'POST' ? req.body : req.query;
-    
-    // Parse manual jika TokoPay mengirim dalam bentuk Teks String biasa
     if (typeof payload === 'string') {
        try { payload = JSON.parse(payload); } catch(e) {}
     }
 
+    // Ubah SEMUA laporan TokoPay jadi satu teks panjang
     const payloadString = JSON.stringify(payload);
 
-    // 2. SIMPAN LOG KE DATABASE (Agar kamu bisa intip laporan TokoPay di menu Log Pintu)
+    // 1. Catat laporan masuk ke Log Admin
     try {
        await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'WEBHOOK MASUK: ' + payloadString.substring(0, 220)})`;
     } catch(e) {}
 
-    // 3. Sistem Deteksi Otomatis (Mencari Nomor Invoice)
-    let ref_id = payload.ref_id || payload.merchant_order_id || payload.reference || payload.order_id || '';
-    let status = payload.status || payload.transaction_status || '';
-    
-    // Jika ref_id tidak ketemu di field standar, paksa cari manual field yang ada kata "INV-"
-    if (!ref_id) {
-       for (const key in payload) {
-          if (typeof payload[key] === 'string' && payload[key].includes('INV-')) {
-             ref_id = payload[key];
-          }
-       }
-    }
+    // 2. JURUS REGEX: Tarik paksa teks yang polanya "INV-(angka)-(angka)" dari manapun posisinya!
+    const invMatch = payloadString.match(/INV-\d+-\d+/);
+    let ref_id = invMatch ? invMatch[0] : null;
 
-    const validStatus = String(status).toLowerCase();
-    
-    // Deteksi status sukses pakai jalur paksa
-    const isSuccess = validStatus === 'success' || validStatus === 'sukses' || validStatus === 'paid' || validStatus === 'settlement' || payloadString.toLowerCase().includes('sukses') || payloadString.toLowerCase().includes('success');
+    // 3. Deteksi status sukses dari teks panjang
+    const pLower = payloadString.toLowerCase();
+    const isSuccess = pLower.includes('success') || pLower.includes('sukses') || pLower.includes('paid') || pLower.includes('settlement');
 
-    // 4. JIKA KETEMU INVOICE-NYA DAN STATUSNYA SUKSES
+    // 4. JIKA KETEMU INVOICE DAN STATUS SUKSES
     if (ref_id && isSuccess) {
        
        // Update tagihan jadi lunas
@@ -61,11 +49,10 @@ export default async function handler(req, res) {
        }
     }
     
-    // 5. Wajib balas pesan TokoPay agar TokoPay berhenti spam notifikasi
+    // 5. Wajib balas pesan TokoPay
     return res.status(200).json({ success: true, message: 'Laporan Diterima' });
 
   } catch(e) {
-    // Catat jika ada error di sistem saat memproses
     try { await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'WEBHOOK ERROR: ' + e.message})`; } catch(err){}
     return res.status(500).json({ success: false, message: e.message });
   }
