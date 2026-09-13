@@ -187,6 +187,17 @@ export default function App() {
     } catch (error) { showToast('Gagal update', 'error'); }
   };
 
+  const handleSetLunasManual = async (billId, userId) => {
+    if(!window.confirm('TokoPay Error? Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
+    setIsLoading(true);
+    try {
+      await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId });
+      showToast('Tagihan dilunasi manual! Akses kamar aktif.', 'success');
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal set lunas tagihan', 'error'); }
+    finally { setIsLoading(false); }
+  };
+
   const handlePayQRIS = async (bill) => {
     setPaymentModal(bill); setQrisData(null);
     try {
@@ -364,8 +375,13 @@ export default function App() {
                       <td className="p-4 font-bold text-red-600">Rp {b.nominal.toLocaleString()}</td>
                       <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'lunas' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{b.status}</span></td>
                       <td className="p-4">{new Date(b.due_date).toLocaleDateString()}</td>
-                      <td className="p-4">
-                        {b.status === 'pending' && <button onClick={() => setBillModal(b)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-bold">Edit Nominal</button>}
+                      <td className="p-4 flex gap-2">
+                        {b.status === 'pending' && (
+                           <>
+                             <button onClick={() => handleSetLunasManual(b.id, b.user_id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded border border-green-200 text-xs font-bold">Set Lunas (Manual)</button>
+                             <button onClick={() => setBillModal(b)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-bold">Edit Nominal</button>
+                           </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -471,7 +487,7 @@ export default function App() {
                 <input type="password" name="secret_key" defaultValue={settings.tokopay_secret_key} className="w-full p-3 border rounded-lg bg-slate-50" required />
               </div>
               <div className="pt-4">
-                <p className="text-xs text-slate-500 mb-4">Pastikan URL Callback Tokopay kamu terdaftar dengan benar ke API Vercel.</p>
+                <p className="text-xs text-red-500 font-bold mb-4 bg-red-50 p-3 rounded">PENTING: Pastikan URL di bawah ini dimasukkan ke Pengaturan "Webhook / Callback" di Dashboard TokoPay kamu:<br/><br/><span className="font-mono bg-white border border-red-200 px-2 py-1 rounded text-red-700">https://smart-kos-two.vercel.app/api/payment/callback</span></p>
                 <button type="submit" className="bg-slate-800 text-white px-6 py-3 rounded-lg font-bold flex items-center hover:bg-slate-900"><Save size={18} className="mr-2"/> Simpan Konfigurasi</button>
               </div>
             </form>

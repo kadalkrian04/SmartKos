@@ -25,9 +25,25 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { nominal } = req.body;
-      await sql`UPDATE bills SET nominal = ${nominal} WHERE id = ${req.query.id}`;
-      return res.status(200).json({ success: true });
+      const { id } = req.query;
+      const { nominal, action, user_id } = req.body;
+      
+      // JIKA ADMIN MENEKAN TOMBOL "SET LUNAS MANUAL"
+      if (action === 'set_lunas') {
+         await sql`UPDATE bills SET status = 'lunas' WHERE id = ${id}`;
+         await sql`
+            UPDATE users 
+            SET is_fingerprint_active = true, 
+                active_until = CURRENT_DATE + INTERVAL '1 month 7 days' 
+            WHERE id = ${user_id}
+         `;
+         return res.status(200).json({ success: true });
+      } 
+      // JIKA ADMIN HANYA EDIT HARGA
+      else {
+         await sql`UPDATE bills SET nominal = ${nominal} WHERE id = ${id}`;
+         return res.status(200).json({ success: true });
+      }
     }
 
     if (req.method === 'DELETE') {
