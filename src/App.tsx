@@ -191,9 +191,22 @@ export default function App() {
     setPaymentModal(bill); setQrisData(null);
     try {
       const response = await axios.post('/api/payment/qris', { refId: bill.ref_id, nominal: bill.nominal });
-      if (response.data.success) setQrisData(response.data.qr_url);
-      else showToast('Gagal koneksi TokoPay', 'error');
-    } catch (error) { showToast('Error API TokoPay', 'error'); }
+      if (response.data.success) {
+        setQrisData(response.data.qr_url);
+        // Memperbarui Ref ID di UI agar sesuai dengan yang dikirim ke TokoPay
+        if(response.data.new_ref_id) {
+           setPaymentModal({...bill, ref_id: response.data.new_ref_id});
+           fetchDashboardData();
+        }
+      } else {
+        // Menampilkan pesan error ASLI dan menutup modal
+        showToast(response.data.message || 'Gagal koneksi TokoPay', 'error');
+        setPaymentModal(null);
+      }
+    } catch (error) { 
+      showToast('Error API TokoPay', 'error');
+      setPaymentModal(null);
+    }
   };
 
   const handleRegisterFingerprint = async () => {
