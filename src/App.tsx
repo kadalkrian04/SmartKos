@@ -61,6 +61,35 @@ export default function App() {
     if (view !== 'login' && view !== 'register') fetchDashboardData();
   }, [view]);
 
+  useEffect(() => {
+    let intervalId: any;
+
+    if (paymentModal) {
+      // Jalankan pengecekan setiap 3 detik
+      intervalId = setInterval(async () => {
+        try {
+          const response = await axios.get('/api/bills');
+          const updatedBill = response.data.find((b: any) => b.id === paymentModal.id);
+          
+          // Jika tagihan sudah berubah jadi lunas
+          if (updatedBill && updatedBill.status === 'lunas') {
+            setPaymentModal(null); // Tutup QRIS otomatis
+            showToast('🎉 Pembayaran Berhasil! Akses Kamar & Sidik Jari telah aktif.', 'success');
+            fetchDashboardData(); // Segarkan data UI utama
+            clearInterval(intervalId); // Hentikan timer pengecekan
+          }
+        } catch (error) {
+          // Abaikan error saat auto-check agar tidak mengganggu user
+        }
+      }, 3000);
+    }
+
+    // Bersihkan interval jika komponen ditutup atau hancur
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [paymentModal]);
+
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -707,16 +736,25 @@ export default function App() {
           )}
         </div>
 
+        {}
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
               <h3 className="text-xl font-bold mb-1">Scan QRIS (TokoPay)</h3>
               <p className="text-xs text-slate-500 font-mono mb-4">Ref: {paymentModal.ref_id}</p>
-              <div className="bg-slate-100 p-2 rounded-xl mb-6 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
-                 {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2"/> Memproses QR...</div>}
+              
+              <div className="bg-slate-100 p-2 rounded-xl mb-4 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
+                 {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2 text-blue-500" size={32}/> Memproses QR...</div>}
               </div>
-              <p className="text-xs text-slate-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">Akses sidik jari dan kamar akan otomatis aktif setelah pembayaran berhasil.</p>
-              <button onClick={() => {setPaymentModal(null); fetchDashboardData(true);}} className="w-full bg-slate-200 text-slate-800 py-3 rounded-lg font-bold hover:bg-slate-300">Tutup & Cek Status</button>
+
+              {/* Tampilan Loading Menunggu Pembayaran */}
+              {qrisData && (
+                 <div className="flex items-center justify-center text-sm font-bold text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4 animate-pulse">
+                    <RefreshCcw className="animate-spin mr-2" size={16} /> Menunggu pembayaran otomatis...
+                 </div>
+              )}
+
+              <button onClick={() => setPaymentModal(null)} className="w-full bg-slate-200 text-slate-800 py-3 rounded-lg font-bold hover:bg-slate-300 transition">Batal / Tutup</button>
             </div>
           </div>
         )}
