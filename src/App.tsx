@@ -6,8 +6,18 @@ import {
 import axios from 'axios';
 
 export default function App() {
-  const [view, setView] = useState('login'); 
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('smartkos_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch(e) { return null; }
+  });
+  
+  const [view, setView] = useState(() => {
+    return localStorage.getItem('smartkos_view') || 'login';
+  }); 
+  
+  const [lastRegUsername, setLastRegUsername] = useState(''); // Menyimpan username baru register
   
   const [users, setUsers] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
@@ -28,6 +38,16 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('smartkos_user', JSON.stringify(currentUser));
+      localStorage.setItem('smartkos_view', view);
+    } else {
+      localStorage.removeItem('smartkos_user');
+      localStorage.removeItem('smartkos_view');
+    }
+  }, [currentUser, view]);
+
   const fetchDashboardData = async (isManual = false) => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -44,7 +64,8 @@ export default function App() {
          
          const myBill = resBills.data.find((b: any) => b.user_id === currentUser.id);
          if (!myBill && currentUser.active_until === null && currentUser.room_id) {
-             setCurrentUser({...currentUser, room_id: null});
+             const updatedUser = {...currentUser, room_id: null};
+             setCurrentUser(updatedUser);
              showToast('Waktu pembayaran habis (10 Menit). Kamar dibatalkan otomatis.', 'error');
          } else if (isManual) {
              showToast('Data berhasil diperbarui', 'success');
@@ -65,29 +86,30 @@ export default function App() {
     let intervalId: any;
 
     if (paymentModal) {
-      // Jalankan pengecekan setiap 3 detik
       intervalId = setInterval(async () => {
         try {
           const response = await axios.get('/api/bills');
           const updatedBill = response.data.find((b: any) => b.id === paymentModal.id);
           
-          // Jika tagihan sudah berubah jadi lunas
           if (updatedBill && updatedBill.status === 'lunas') {
-            setPaymentModal(null); // Tutup QRIS otomatis
+            setPaymentModal(null);
+            
+            const updatedUser = {
+               ...currentUser, 
+               is_fingerprint_active: true, 
+               active_until: new Date(Date.now() + (37 * 24 * 60 * 60 * 1000)).toISOString()
+            };
+            setCurrentUser(updatedUser);
+            
             showToast('🎉 Pembayaran Berhasil! Akses Kamar & Sidik Jari telah aktif.', 'success');
-            fetchDashboardData(); // Segarkan data UI utama
-            clearInterval(intervalId); // Hentikan timer pengecekan
+            fetchDashboardData();
+            clearInterval(intervalId); 
           }
-        } catch (error) {
-          // Abaikan error saat auto-check agar tidak mengganggu user
-        }
+        } catch (error) {}
       }, 3000);
     }
 
-    // Bersihkan interval jika komponen ditutup atau hancur
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => { if (intervalId) clearInterval(intervalId); };
   }, [paymentModal]);
 
   const handleLogin = async (e: any) => {
@@ -111,11 +133,13 @@ export default function App() {
   const handleRegister = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
+    const newUsername = e.target.username.value;
     try {
       const response = await axios.post('/api/auth/register', { 
-        name: e.target.name.value, username: e.target.username.value, password: e.target.password.value 
+        name: e.target.name.value, username: newUsername, password: e.target.password.value 
       });
       if (response.data.success) {
+        setLastRegUsername(newUsername); // Mengingat username yang baru dibuat
         showToast('Pendaftaran berhasil! Silakan login.', 'success');
         setView('login');
       } else { showToast(response.data.message, 'error'); }
@@ -123,7 +147,12 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const logout = () => { setCurrentUser(null); setView('login'); };
+  const logout = () => { 
+    setCurrentUser(null); 
+    setView('login'); 
+    localStorage.removeItem('smartkos_user');
+    localStorage.removeItem('smartkos_view');
+  };
 
   const handleSaveRoom = async (e: any) => {
     e.preventDefault();
@@ -139,7 +168,7 @@ export default function App() {
   };
 
   const handleDeleteRoom = async (id: number) => {
-    if(!window.confirm('Yakin hapus kamar ini?')) return;
+    if(!window.confirm('Yakin hapus kamar ini? Pastikan tidak ada penghuni!')) return;
     try {
       await axios.delete(`/api/rooms?id=${id}`);
       showToast('Kamar dihapus', 'success'); fetchDashboardData();
@@ -287,18 +316,18 @@ export default function App() {
 
         {view === 'login' ? (
           <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" name="username" placeholder="Username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <input type="password" name="password" placeholder="Password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
             <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow hover:bg-blue-700">Login</button>
             <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline">Daftar Baru</button></p>
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-4">
-            <input type="text" name="name" placeholder="Nama Lengkap" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <input type="text" name="username" placeholder="Username Baru" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <input type="password" name="password" placeholder="Password Baru" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="text" name="name" placeholder="Nama Lengkap" autoComplete="name" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="text" name="username" placeholder="Username Baru" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="password" name="password" placeholder="Password Baru" autoComplete="new-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
             <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700">Daftar Akun</button>
-            <p className="text-center text-sm text-slate-600 mt-4">Sudah punya akun? <button type="button" onClick={() => setView('login')} className="text-blue-600 font-bold hover:underline">Login</button></p>
+            <p className="text-center text-sm text-slate-600 mt-4">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline">Login</button></p>
           </form>
         )}
       </div>
@@ -307,7 +336,7 @@ export default function App() {
 
   const renderAdmin = () => (
     <div className="flex min-h-screen bg-slate-50">
-      <div className="w-64 bg-slate-900 text-white flex flex-col">
+      <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex">
         <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
           <Fingerprint className="text-blue-400" size={28} />
           <span className="font-bold text-xl">AdminKos</span>
@@ -328,19 +357,19 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="p-4"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition"><LogOut size={18} className="mr-3" /> Keluar</button></div>
+        <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition"><LogOut size={18} className="mr-3" /> Keluar</button></div>
       </div>
 
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800">Manajemen Kos</h2>
-          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold"><RefreshCcw size={16} className={`mr-2 ${isLoading && 'animate-spin'}`}/> Segarkan Data</button>
+          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold"><RefreshCcw size={16} className={`mr-2 ${isLoading && 'animate-spin'}`}/> Segarkan</button>
         </div>
 
         {view === 'admin_dashboard' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border">
              <h3 className="font-bold mb-6 text-lg">Peta Kamar</h3>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {rooms.map(room => (
                   <div key={room.id} className={`p-4 rounded-lg border-2 ${room.status === 'available' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                      <div className="flex justify-between items-center mb-2"><span className="font-bold text-xl">{room.number}</span><span className={`text-xs px-2 py-1 rounded font-bold ${room.status === 'available' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>{room.status.toUpperCase()}</span></div>
@@ -353,17 +382,27 @@ export default function App() {
         )}
 
         {view === 'admin_users' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
-            <table className="w-full text-left text-sm">
-                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Nama</th><th className="p-4">Username</th><th className="p-4">Kamar</th><th className="p-4">Aktif Sampai</th><th className="p-4">Status Sidik Jari</th></tr></thead>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Nama</th><th className="p-4">Username</th><th className="p-4">Kamar</th><th className="p-4">Aktif Sampai</th><th className="p-4">Status Hak Akses</th></tr></thead>
                 <tbody className="divide-y">
                   {users.map(u => (
                     <tr key={u.id} className="hover:bg-slate-50">
                       <td className="p-4 font-bold">{u.name}</td><td className="p-4 text-slate-500">{u.username}</td>
-                      <td className="p-4">{rooms.find(r => r.id === u.room_id)?.number || 'Belum Pilih'}</td>
+                      <td className="p-4">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
                       <td className="p-4">{u.active_until ? new Date(u.active_until).toLocaleDateString() : '-'}</td>
-                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${u.is_fingerprint_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.is_fingerprint_active ? 'TERDAFTAR' : 'TERKUNCI'}</span></td>
+                      <td className="p-4">
+                        {!u.room_id ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
+                        ) : !u.is_fingerprint_active ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
+                        ) : !u.fingerprint_id ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-yellow-100 text-yellow-700">AKTIF (FINGER BELUM)</span>
+                        ) : (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">TERDAFTAR & AKTIF</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -374,8 +413,8 @@ export default function App() {
         {view === 'admin_rooms' && (
           <div className="space-y-4">
             <button onClick={() => setRoomModal({ type: 'add', data: {} })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Tambah Kamar Baru</button>
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">No. Kamar</th><th className="p-4">Nama</th><th className="p-4">Harga (Rp)</th><th className="p-4">Status</th><th className="p-4">HW Fingerprint</th><th className="p-4">Aksi</th></tr></thead>
                 <tbody className="divide-y">
                   {rooms.map(r => (
@@ -405,8 +444,8 @@ export default function App() {
                <span className="font-bold">Info Sistem:</span> Tagihan otomatis mengunci sidik jari penghuni jika belum lunas &gt; 7 hari dari tanggal rilis. User baru yg tidak bayar dalam 10 menit otomatis dibatalkan.
             </div>
             <button onClick={handleGenerateBills} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Generate Tagihan Bulan Ini</button>
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">ID User</th><th className="p-4">Ref TokoPay</th><th className="p-4">Nominal</th><th className="p-4">Status</th><th className="p-4">Jatuh Tempo</th><th className="p-4">Aksi</th></tr></thead>
                 <tbody className="divide-y">
                   {bills.map(b => (
@@ -432,12 +471,12 @@ export default function App() {
         )}
 
         {view === 'admin_history' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex justify-between items-center mb-6">
                <h3 className="font-bold text-lg flex items-center"><History className="mr-2 text-blue-600"/> Riwayat Pembayaran (Lunas)</h3>
                <p className="text-sm text-slate-500">Pencatatan 6 bulan terakhir</p>
             </div>
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">Tanggal Tagihan</th><th className="p-4">Penghuni</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Aksi</th></tr></thead>
                 <tbody className="divide-y">
                   {bills.filter(b => b.status === 'lunas').map(b => (
@@ -497,7 +536,7 @@ export default function App() {
         )}
 
         {view === 'admin_logs' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                <h3 className="font-bold text-lg flex items-center"><FileText className="mr-2 text-blue-600"/> Log Buka Pintu (Fingerprint)</h3>
                <div className="flex gap-2 items-center">
@@ -505,7 +544,7 @@ export default function App() {
                  <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
                </div>
             </div>
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
                 <tbody className="divide-y">
                   {logs.map(l => (
@@ -580,10 +619,10 @@ export default function App() {
   const renderResident = () => {
     if (!currentUser.room_id) {
       return (
-        <div className="min-h-screen bg-slate-100 p-8">
+        <div className="min-h-screen bg-slate-100 p-4 md:p-8">
           <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
              <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={16} className="mr-2"/> Keluar Akun</button>
+             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={16} className="mr-2"/> Keluar</button>
           </nav>
           <div className="max-w-4xl mx-auto">
              <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
@@ -591,7 +630,7 @@ export default function App() {
                <p className="text-slate-600">Silakan pilih kamar kosong di bawah ini untuk mulai menyewa.</p>
                <p className="text-sm text-red-500 font-bold mt-2 bg-red-50 inline-block px-3 py-1 rounded">*Kamar yang tidak dibayar dalam 10 Menit akan dibatalkan otomatis.</p>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                {rooms.filter(r => r.status === 'available').map(room => (
                  <div key={room.id} className="bg-white p-6 rounded-xl shadow border border-slate-200 text-center hover:border-blue-400 transition">
                    <h3 className="text-3xl font-black text-slate-800 mb-2">{room.number}</h3>
@@ -601,7 +640,7 @@ export default function App() {
                  </div>
                ))}
                {rooms.filter(r => r.status === 'available').length === 0 && (
-                 <div className="col-span-3 text-center p-8 text-slate-500 bg-white rounded-xl border">Maaf, saat ini tidak ada kamar kosong yang tersedia.</div>
+                 <div className="col-span-1 sm:col-span-2 md:col-span-3 text-center p-8 text-slate-500 bg-white rounded-xl border">Maaf, saat ini tidak ada kamar kosong yang tersedia.</div>
                )}
              </div>
           </div>
@@ -616,18 +655,18 @@ export default function App() {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <nav className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+        <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={18} className="mr-2"/> Keluar</button>
+          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={18} className="mr-2 hidden md:block"/> Keluar</button>
         </nav>
 
-        <div className="bg-white border-b px-6 flex space-x-2 md:space-x-6 justify-center text-sm font-bold shadow-sm">
+        <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
            <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
            <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
            <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
         </div>
 
-        <div className="max-w-4xl mx-auto p-6 w-full flex-1 space-y-6">
+        <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
           {view === 'resident_dashboard' && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
@@ -709,7 +748,7 @@ export default function App() {
           )}
 
           {view === 'resident_history' && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
                <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
                {historyBills.length > 0 ? (
                  <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -736,7 +775,7 @@ export default function App() {
           )}
         </div>
 
-        {}
+        {/* Modal QRIS (Polling Auto-Tutup) */}
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
@@ -747,7 +786,6 @@ export default function App() {
                  {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2 text-blue-500" size={32}/> Memproses QR...</div>}
               </div>
 
-              {/* Tampilan Loading Menunggu Pembayaran */}
               {qrisData && (
                  <div className="flex items-center justify-center text-sm font-bold text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4 animate-pulse">
                     <RefreshCcw className="animate-spin mr-2" size={16} /> Menunggu pembayaran otomatis...
