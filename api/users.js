@@ -4,13 +4,11 @@ export default async function handler(req, res) {
   const { action } = req.query;
 
   try {
-    // 1. AMBIL DATA USERS (GET)
     if (req.method === 'GET') {
       const { rows } = await sql`SELECT id, username, name, room_id, active_until, is_fingerprint_active, fingerprint_id FROM users WHERE role = 'resident'`;
       return res.status(200).json(rows);
     }
 
-    // 2. UPDATE FINGERPRINT / STATUS AKSES (PUT)
     if (req.method === 'PUT') {
       const { userId, fingerprint_id, is_fingerprint_active } = req.body;
 
@@ -34,9 +32,38 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'Data sidik jari penghuni berhasil diperbarui' });
     }
 
-    // 3. PILIH KAMAR ATAU DAFTAR FINGERPRINT (POST)
     if (req.method === 'POST') {
-      // AKSI PILIH KAMAR
+      // 1. MEMULAI SESI REKAM JARI JARAK JAUH DARI WEB
+      if (action === 'start-enroll') {
+        const { userId } = req.body;
+        const userRes = await sql`SELECT room_id, is_fingerprint_active FROM users WHERE id = ${userId}`;
+        if (userRes.rows.length === 0 || !userRes.rows[0].room_id) {
+          return res.status(400).json({ success: false, message: 'Anda belum terdaftar di kamar manapun!' });
+        }
+        if (!userRes.rows[0].is_fingerprint_active) {
+          return res.status(400).json({ success: false, message: 'Selesaikan tagihan sewa kamar Anda terlebih dahulu!' });
+        }
+
+        const roomId = userRes.rows[0].room_id;
+        // Buka jendela pendaftaran selama 90 detik di kamar tersebut
+        await sql`
+          UPDATE rooms 
+          SET enroll_user_id = ${userId}, enroll_expires_at = NOW() + INTERVAL '90 seconds' 
+          WHERE id = ${roomId}
+        `;
+
+        await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, 'Memulai Sesi Rekam Jari Jarak Jauh (Waktu: 90 Detik)')`;
+        return res.status(200).json({ success: true, message: 'Sistem pintu siap merekam. Silakan tempelkan jari Anda ke sensor.' });
+      }
+
+      // 2. MEMBATALKAN SESI REKAM JARI
+      if (action === 'cancel-enroll') {
+        const { userId } = req.body;
+        await sql`UPDATE rooms SET enroll_user_id = NULL, enroll_expires_at = NULL WHERE resident_id = ${userId}`;
+        return res.status(200).json({ success: true, message: 'Sesi pendaftaran dibatalkan' });
+      }
+
+      // 3. AKSI PILIH KAMAR
       if (action === 'choose-room') {
         const { userId, roomId } = req.body;
         const roomData = await sql`SELECT price, number FROM rooms WHERE id = ${roomId} AND status = 'available'`;
@@ -55,24 +82,6 @@ export default async function handler(req, res) {
         `;
 
         return res.status(200).json({ success: true, message: 'Berhasil memilih kamar dan tagihan telah dibuat' });
-      }
-
-      // AKSI DAFTAR FINGERPRINT
-      if (action === 'fingerprint') {
-        const { userId } = req.body;
-        const user = await sql`SELECT is_fingerprint_active FROM users WHERE id = ${userId}`;
-        if(user.rows.length === 0 || !user.rows[0].is_fingerprint_active) {
-          return res.status(400).json({ success: false, message: 'Selesaikan tagihan Anda terlebih dahulu!'});
-        }
-
-        const hardwareFingerprintId = userId.toString();
-        await sql`UPDATE users SET fingerprint_id = ${hardwareFingerprintId} WHERE id = ${userId}`;
-
-        return res.status(200).json({ 
-          success: true, 
-          fingerprint_id: hardwareFingerprintId, 
-          message: 'Akses disetujui! Silakan ikuti panduan pendaftaran pada alat ESP8266 di pintu Anda.' 
-        });
       }
     }
 

@@ -26,6 +26,7 @@ export default function App() {
   const [settings, setSettings] = useState({ tokopay_merchant_id: '', tokopay_secret_key: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isScanningFP, setIsScanningFP] = useState(false);
+  const [enrollCountdown, setEnrollCountdown] = useState(60);
   
   const [toast, setToast] = useState<{msg: string, type: string} | null>(null);
   const [paymentModal, setPaymentModal] = useState<any>(null);
@@ -313,21 +314,72 @@ export default function App() {
     }
   };
 
-  const handleRegisterFingerprint = async () => {
-    setIsScanningFP(true);
-    setTimeout(async () => {
-      try {
-        const response = await axios.post('/api/users?action=fingerprint', { userId: currentUser.id });
-        if(response.data.success) {
-           setCurrentUser({...currentUser, fingerprint_id: response.data.fingerprint_id});
-           showToast(response.data.message, 'success');
-        } else {
-           showToast(response.data.message, 'error');
-        }
-      } catch (error) { showToast('Gagal terhubung dengan mesin pintu.', 'error'); }
-      finally { setIsScanningFP(false); }
-    }, 3000); 
+  const handleStartEnrollment = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post('/api/users?action=start-enroll', { userId: currentUser.id });
+      if (response.data.success) {
+        setIsScanningFP(true);
+        setEnrollCountdown(75);
+        showToast('Mode rekam aktif! Tempelkan jari ke sensor pintu kamar Anda.', 'info');
+      } else {
+        showToast(response.data.message, 'error');
+      }
+    } catch (error: any) {
+      showToast(error.response?.data?.message || 'Gagal memulai pendaftaran', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleCancelEnrollment = async () => {
+    try {
+      await axios.post('/api/users?action=cancel-enroll', { userId: currentUser.id });
+    } catch (e) {}
+    setIsScanningFP(false);
+    showToast('Perekaman sidik jari dibatalkan.', 'info');
+  };
+
+  useEffect(() => {
+    let timer: any;
+    let pollInterval: any;
+
+    if (isScanningFP) {
+      // Hitung mundur visual di layar HP
+      timer = setInterval(() => {
+        setEnrollCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsScanningFP(false);
+            showToast('Waktu pendaftaran habis. Silakan coba lagi.', 'error');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Cek ke database apakah alat di pintu sudah selesai merekam
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await axios.get('/api/users');
+          const myData = res.data.find((u: any) => u.id === currentUser.id);
+          if (myData && myData.fingerprint_id) {
+            setCurrentUser({ ...currentUser, fingerprint_id: myData.fingerprint_id });
+            setIsScanningFP(false);
+            clearInterval(pollInterval);
+            clearInterval(timer);
+            showToast('🎉 Berhasil! Sidik jari Anda sudah aktif di pintu kamar.', 'success');
+            fetchDashboardData();
+          }
+        } catch (e) {}
+      }, 2500);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [isScanningFP]);
 
   const handleSaveResidentFp = async (e: any) => {
     e.preventDefault();
@@ -892,16 +944,17 @@ export default function App() {
                        
                        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
                           <button
-                            onClick={() => setResidentEditFpModal(true)}
-                            className="flex items-center justify-center px-5 py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl font-bold text-sm transition"
+                            onClick={handleStartEnrollment}
+                            disabled={isLoading}
+                            className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition"
                           >
-                            <Edit size={16} className="mr-2" /> Ganti / Edit ID Slot
+                            <RefreshCcw size={16} className="mr-2" /> Rekam Ulang / Ganti Jari di Pintu
                           </button>
                           <button
-                            onClick={() => setConfirmResetFpModal(true)}
-                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl font-bold text-sm transition"
+                            onClick={() => setResidentEditFpModal(true)}
+                            className="flex items-center justify-center px-5 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl font-bold text-sm transition"
                           >
-                            <Trash2 size={16} className="mr-2" /> Hapus / Daftar Ulang Jari
+                            <Edit size={16} className="mr-2" /> Edit Slot Manual
                           </button>
                        </div>
                     </div>
@@ -909,15 +962,28 @@ export default function App() {
                     <div className="p-6 flex flex-col items-center">
                        <Fingerprint size={80} className={`mb-6 ${isScanningFP ? 'text-blue-500 animate-pulse' : 'text-slate-300'}`} />
                        {isScanningFP ? (
-                           <div className="text-blue-600">
-                             <p className="font-bold text-lg mb-2">Memindai...</p>
-                             <p className="text-sm">Tahan jari Anda pada sensor pintu kamar.</p>
+                           <div className="text-blue-600 space-y-3">
+                             <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
+                               <p className="font-black text-xl mb-1 text-blue-700">SIAGA MEREKAM JARI</p>
+                               <p className="text-sm text-slate-600 mb-2">Tempelkan jari Anda ke sensor di pintu, angkat, lalu tempelkan sekali lagi.</p>
+                               <span className="inline-block px-3 py-1 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
+                                 Sisa Waktu: {enrollCountdown} Detik
+                               </span>
+                             </div>
+                             <button
+                               onClick={handleCancelEnrollment}
+                               className="text-xs text-red-500 hover:underline font-bold mt-2"
+                             >
+                               Batalkan Perekaman
+                             </button>
                            </div>
                        ) : (
                            <>
-                             <p className="text-slate-600 mb-8 font-medium">Letakkan jari Anda pada sensor mesin di pintu kamar untuk mendaftarkan akses masuk.</p>
+                             <p className="text-slate-600 mb-6 font-medium">Klik tombol di bawah ini, lalu tempelkan jari Anda ke sensor di pintu kamar untuk mendaftarkan akses masuk secara otomatis.</p>
                              <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md">
-                               <button onClick={handleRegisterFingerprint} className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-0.5 transition transform">Mulai Pindai Sidik Jari</button>
+                               <button onClick={handleStartEnrollment} disabled={isLoading} className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-0.5 transition transform flex items-center justify-center">
+                                 <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu
+                               </button>
                                <button onClick={() => setResidentEditFpModal(true)} className="flex-1 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Set ID Manual</button>
                              </div>
                            </>
