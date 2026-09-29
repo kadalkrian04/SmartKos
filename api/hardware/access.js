@@ -4,7 +4,20 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method tidak diizinkan' });
 
   // Menangkap data yang dikirim oleh alat ESP8266 (Device ID kamar dan ID Sidik Jari)
-  const { device_id, finger_id } = req.body;
+  let payload = req.body;
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      console.error('Gagal parse JSON dari hardware', e);
+    }
+  }
+
+  const { device_id, finger_id } = payload || {};
+
+  if (!device_id || finger_id === undefined) {
+    return res.status(400).json({ open: false, message: 'Data hardware tidak lengkap' });
+  }
 
   try {
     const roomQuery = await sql`SELECT id, number FROM rooms WHERE device_id = ${device_id}`;

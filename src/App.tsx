@@ -32,6 +32,7 @@ export default function App() {
   const [qrisData, setQrisData] = useState<string | null>(null);
   const [roomModal, setRoomModal] = useState<any>(null);
   const [billModal, setBillModal] = useState<any>(null);
+  const [userFpModal, setUserFpModal] = useState<any>(null);
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
@@ -215,6 +216,27 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
+  const handleSaveUserFingerprint = async (e: any) => {
+    e.preventDefault();
+    if (!userFpModal) return;
+    setIsLoading(true);
+    try {
+      const fd = new FormData(e.target);
+      await axios.put('/api/users', {
+        userId: userFpModal.id,
+        fingerprint_id: fd.get('fingerprint_id'),
+        is_fingerprint_active: fd.get('is_fingerprint_active') === 'on'
+      });
+      showToast('ID Sidik Jari berhasil diperbarui!', 'success');
+      setUserFpModal(null);
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal menyimpan ID Sidik Jari', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSaveSettings = async (e: any) => {
     e.preventDefault();
     try {
@@ -385,13 +407,32 @@ export default function App() {
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
             <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Nama</th><th className="p-4">Username</th><th className="p-4">Kamar</th><th className="p-4">Aktif Sampai</th><th className="p-4">Status Hak Akses</th></tr></thead>
+                <thead className="bg-slate-100 border-b">
+                  <tr>
+                    <th className="p-4">Nama</th>
+                    <th className="p-4">Username</th>
+                    <th className="p-4">Kamar</th>
+                    <th className="p-4">ID Slot Sensor</th>
+                    <th className="p-4">Status Hak Akses</th>
+                    <th className="p-4">Aksi</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y">
                   {users.map(u => (
                     <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{u.name}</td><td className="p-4 text-slate-500">{u.username}</td>
+                      <td className="p-4 font-bold">{u.name}</td>
+                      <td className="p-4 text-slate-500">{u.username}</td>
                       <td className="p-4">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
-                      <td className="p-4">{u.active_until ? new Date(u.active_until).toLocaleDateString() : '-'}</td>
+                      {}
+                      <td className="p-4">
+                        {u.fingerprint_id ? (
+                          <span className="font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-200">
+                            ID #{u.fingerprint_id}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic">Belum Ada</span>
+                        )}
+                      </td>
                       <td className="p-4">
                         {!u.room_id ? (
                            <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
@@ -402,6 +443,16 @@ export default function App() {
                         ) : (
                            <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">TERDAFTAR & AKTIF</span>
                         )}
+                      </td>
+                      {}
+                      <td className="p-4">
+                        <button
+                          onClick={() => setUserFpModal(u)}
+                          className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                        >
+                          <Fingerprint size={14} className="mr-1.5 text-blue-400" />
+                          Atur ID Jari
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -609,6 +660,75 @@ export default function App() {
               <p className="text-sm text-slate-500 mb-4">User ID: {billModal.user_id}</p>
               <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded mb-4 text-lg font-bold text-red-600" required />
               <div className="flex gap-2"><button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
+            </form>
+          </div>
+        )}
+
+        {}
+        {userFpModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveUserFingerprint} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
+                  <Fingerprint size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">Atur ID Sidik Jari</h3>
+                  <p className="text-xs text-slate-500">Penghuni: <span className="font-bold text-slate-700">{userFpModal.name}</span></p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nomor Slot ID di Sensor (1 - 127)
+                </label>
+                <input
+                  type="number"
+                  name="fingerprint_id"
+                  min="1"
+                  max="127"
+                  defaultValue={userFpModal.fingerprint_id || '1'}
+                  placeholder="Contoh: 1"
+                  className="w-full p-3 border rounded-xl font-mono font-bold text-lg text-blue-600 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Samakan dengan nomor slot yang kamu rekam di alat (tadi kamu merekam di <strong>ID 1</strong>).
+                </p>
+              </div>
+
+              <div className="mb-6 bg-slate-50 p-3 rounded-xl border flex items-center justify-between">
+                <div>
+                  <label htmlFor="is_fingerprint_active" className="text-xs font-bold text-slate-800 block cursor-pointer">
+                    Akses Pintu Aktif
+                  </label>
+                  <span className="text-[11px] text-slate-500">Buka kunci pintu diizinkan</span>
+                </div>
+                <input
+                  type="checkbox"
+                  id="is_fingerprint_active"
+                  name="is_fingerprint_active"
+                  defaultChecked={userFpModal.is_fingerprint_active}
+                  className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserFpModal(null)}
+                  className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md transition"
+                >
+                  {isLoading ? 'Menyimpan...' : 'Simpan ID'}
+                </button>
+              </div>
             </form>
           </div>
         )}

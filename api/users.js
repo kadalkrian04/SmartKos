@@ -8,6 +8,20 @@ export default async function handler(req, res) {
       return res.status(200).json(rows);
     }
     
+    if (req.method === 'PUT') {
+      const { userId, fingerprint_id, is_fingerprint_active } = req.body;
+
+      await sql`
+        UPDATE users 
+        SET 
+          fingerprint_id = ${fingerprint_id ? fingerprint_id.toString() : null},
+          is_fingerprint_active = ${is_fingerprint_active !== undefined ? is_fingerprint_active : true}
+        WHERE id = ${userId}
+      `;
+
+      return res.status(200).json({ success: true, message: 'Data sidik jari penghuni berhasil diperbarui' });
+    }
+
     res.status(405).json({ message: 'Method tidak didukung' });
   } catch (error) {
     res.status(500).json({ message: error.message });
