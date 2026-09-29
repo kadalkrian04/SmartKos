@@ -21,81 +21,125 @@ export default async function handler(req, res) {
   }
 
   try {
-    const roomQuery = await sql`
+    // =========================================================================
+    // 1. TAHAP KONFIRMASI PENDAFTARAN SIDIK JARI SUKSES (ENROLL_SUCCESS)
+    // =========================================================================
+    if (action === 'ENROLL_SUCCESS') {
+      // Cari kamar manapun yang sedang dalam sesi perekaman aktif
+      const enrollRoomQuery = await sql`
+        SELECT id, number, enroll_user_id 
+        FROM rooms 
+        WHERE enroll_user_id IS NOT NULL 
+        ORDER BY enroll_expires_at DESC LIMIT 1
+      `;
+
+      const targetUserId = user_id || (enrollRoomQuery.rows.length > 0 ? enrollRoomQuery.rows[0].enroll_user_id : null);
+      const targetSlot = slot_id ? slot_id.toString() : (targetUserId ? targetUserId.toString() : '1');
+
+      if (targetUserId) {
+        // Simpan nomor slot ID ke database penghuni
+        await sql`
+          UPDATE users 
+          SET fingerprint_id = ${targetSlot}, is_fingerprint_active = true 
+          WHERE id = ${targetUserId}
+        `;
+
+        // Bersihkan status perekaman di kamar
+        await sql`
+          UPDATE rooms 
+          SET enroll_user_id = NULL, enroll_expires_at = NULL 
+          WHERE enroll_user_id = ${targetUserId}
+        `;
+
+        // Ambil data kamar penghuni untuk dicatat ke log
+        const uRes = await sql`
+          SELECT u.name, r.number 
+          FROM users u 
+          LEFT JOIN rooms r ON u.room_id = r.id 
+          WHERE u.id = ${targetUserId}
+        `;
+        const roomNumber = uRes.rows[0]?.number || 'Uji Coba';
+
+        await sql`
+          INSERT INTO logs (user_id, action) 
+          VALUES (${targetUserId}, ${'Sidik Jari Berhasil Didaftarkan (Slot #' + targetSlot + '): Kamar ' + roomNumber})
+        `;
+
+        return res.status(200).json({ 
+          success: true, 
+          message: `Sidik jari Penghuni Kamar ${roomNumber} berhasil disimpan di database!` 
+        });
+      }
+    }
+
+    // =========================================================================
+    // 2. CEK SESI REKAM JARI (REMOTE ENROLLMENT) DARI WEB
+    // Mendukung 1 alat fisik di meja untuk melayani rekam jari kamar manapun!
+    // =========================================================================
+    const activeEnroll = await sql`
       SELECT id, number, enroll_user_id, enroll_expires_at 
       FROM rooms 
-      WHERE device_id = ${device_id}
+      WHERE enroll_user_id IS NOT NULL AND enroll_expires_at > NOW()
+      ORDER BY (CASE WHEN device_id = ${device_id} THEN 0 ELSE 1 END), enroll_expires_at DESC 
+      LIMIT 1
     `;
 
-    if (roomQuery.rows.length === 0) {
-      return res.status(404).json({ open: false, message: 'Alat belum terhubung ke kamar di dashboard' });
-    }
-    const room = roomQuery.rows[0];
-
-    if (action === 'ENROLL_SUCCESS') {
-      const targetUserId = user_id || room.enroll_user_id;
-      const targetSlot = slot_id ? slot_id.toString() : targetUserId.toString();
-
-      // Update ID sidik jari di data penghuni
-      await sql`
-        UPDATE users 
-        SET fingerprint_id = ${targetSlot}, is_fingerprint_active = true 
-        WHERE id = ${targetUserId}
-      `;
-
-      // Bersihkan mode pendaftaran di kamar
-      await sql`
-        UPDATE rooms 
-        SET enroll_user_id = NULL, enroll_expires_at = NULL 
-        WHERE id = ${room.id}
-      `;
-
-      // Catat log pendaftaran sukses
-      await sql`
-        INSERT INTO logs (user_id, action) 
-        VALUES (${targetUserId}, ${'Sidik Jari Berhasil Didaftarkan (Slot #' + targetSlot + '): Kamar ' + room.number})
-      `;
-
-      return res.status(200).json({ success: true, message: 'Sidik jari berhasil disimpan di database!' });
-    }
-
-    const isEnrolling = room.enroll_user_id && room.enroll_expires_at && new Date() < new Date(room.enroll_expires_at);
-
-    if (isEnrolling) {
-      // Perintahkan alat ESP8266 untuk langsung masuk ke mode perekaman
+    if (activeEnroll.rows.length > 0) {
+      const enrollingRoom = activeEnroll.rows[0];
       return res.status(200).json({
         open: false,
         mode: 'ENROLL',
-        slot_id: room.enroll_user_id,
-        user_id: room.enroll_user_id,
-        message: 'Mode rekam aktif! Mulai proses pendaftaran jari di sensor.'
+        slot_id: enrollingRoom.enroll_user_id, // Gunakan User ID sebagai nomor slot sensor
+        user_id: enrollingRoom.enroll_user_id,
+        message: `Mode rekam aktif! Tempelkan jari untuk Kamar ${enrollingRoom.number}`
       });
     }
 
+    // =========================================================================
+    // 3. MODE OPERASIONAL BUKA PINTU BIASA
+    // =========================================================================
     if (finger_id === undefined || finger_id <= 0) {
-      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Akses Ditolak (Jari Tak Terdaftar): Kamar ' + room.number})`;
+      await sql`INSERT INTO logs (user_id, action) VALUES (0, 'Akses Ditolak: Jari belum terdaftar di sistem')`;
       return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Sidik jari belum terdaftar di sistem' });
     }
 
+    // Cari penghuni pemilik nomor sidik jari ini di tabel users
     const userQuery = await sql`
-      SELECT id, name, is_fingerprint_active 
-      FROM users 
-      WHERE fingerprint_id = ${finger_id.toString()} AND room_id = ${room.id}
+      SELECT u.id, u.name, u.is_fingerprint_active, u.room_id, r.number AS room_number, r.device_id AS room_device_id
+      FROM users u
+      LEFT JOIN rooms r ON u.room_id = r.id
+      WHERE u.fingerprint_id = ${finger_id.toString()}
     `;
 
     if (userQuery.rows.length === 0) {
-      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Akses Ditolak (Bukan Penghuni): Kamar ' + room.number})`;
-      return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Sidik jari tidak cocok dengan penghuni kamar ini' });
+      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Akses Ditolak (ID Sensor #' + finger_id + ' Tidak Dikenal)'})`;
+      return res.status(200).json({ 
+        open: false, 
+        mode: 'NORMAL', 
+        message: 'Sidik jari tidak cocok dengan data penghuni manapun' 
+      });
     }
 
     const user = userQuery.rows[0];
+    const isDirectMatch = user.room_device_id === device_id;
+    const roomLabel = user.room_number ? `Kamar ${user.room_number}` : 'Kamar Belum Dipilih';
 
+    // Cek status hak akses & tagihan lunas
     if (user.is_fingerprint_active) {
-      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Buka Pintu Sukses: Kamar ' + room.number})`;
-      return res.status(200).json({ open: true, mode: 'NORMAL', message: 'Akses Diberikan' });
+      const testTag = isDirectMatch ? '' : ' [Uji Coba Multi-Kamar]';
+      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Buka Pintu Sukses: ' + roomLabel + testTag})`;
+      return res.status(200).json({ 
+        open: true, 
+        mode: 'NORMAL', 
+        message: `Akses Diberikan untuk ${user.name} (${roomLabel})` 
+      });
     } else {
-      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Akses Ditolak (Belum Bayar): Kamar ' + room.number})`;
-      return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Akses terkunci, tagihan belum lunas' });
+      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Akses Ditolak (Belum Bayar): ' + roomLabel})`;
+      return res.status(200).json({ 
+        open: false, 
+        mode: 'NORMAL', 
+        message: `Akses terkunci! Tagihan ${roomLabel} belum lunas` 
+      });
     }
 
   } catch (error) {
