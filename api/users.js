@@ -11,13 +11,22 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const { userId, fingerprint_id, is_fingerprint_active } = req.body;
 
-      await sql`
-        UPDATE users 
-        SET 
-          fingerprint_id = ${fingerprint_id ? fingerprint_id.toString() : null},
-          is_fingerprint_active = ${is_fingerprint_active !== undefined ? is_fingerprint_active : true}
-        WHERE id = ${userId}
-      `;
+      if (is_fingerprint_active !== undefined) {
+        await sql`
+          UPDATE users 
+          SET 
+            fingerprint_id = ${fingerprint_id ? fingerprint_id.toString() : null},
+            is_fingerprint_active = ${is_fingerprint_active}
+          WHERE id = ${userId}
+        `;
+      } else {
+        await sql`
+          UPDATE users 
+          SET 
+            fingerprint_id = ${fingerprint_id ? fingerprint_id.toString() : null}
+          WHERE id = ${userId}
+        `;
+      }
 
       return res.status(200).json({ success: true, message: 'Data sidik jari penghuni berhasil diperbarui' });
     }

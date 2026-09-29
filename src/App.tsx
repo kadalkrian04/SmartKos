@@ -33,6 +33,8 @@ export default function App() {
   const [roomModal, setRoomModal] = useState<any>(null);
   const [billModal, setBillModal] = useState<any>(null);
   const [userFpModal, setUserFpModal] = useState<any>(null);
+  const [residentEditFpModal, setResidentEditFpModal] = useState(false);
+  const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
@@ -325,6 +327,46 @@ export default function App() {
       } catch (error) { showToast('Gagal terhubung dengan mesin pintu.', 'error'); }
       finally { setIsScanningFP(false); }
     }, 3000); 
+  };
+
+  const handleSaveResidentFp = async (e: any) => {
+    e.preventDefault();
+    const newFpId = e.target.fingerprint_id.value;
+    setIsLoading(true);
+    try {
+      await axios.put('/api/users', {
+        userId: currentUser.id,
+        fingerprint_id: newFpId
+      });
+      const updatedUser = { ...currentUser, fingerprint_id: newFpId };
+      setCurrentUser(updatedUser);
+      setResidentEditFpModal(false);
+      showToast('ID Sidik Jari berhasil diperbarui!', 'success');
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal mengubah ID Sidik Jari', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetResidentFp = async () => {
+    setIsLoading(true);
+    try {
+      await axios.put('/api/users', {
+        userId: currentUser.id,
+        fingerprint_id: null
+      });
+      const updatedUser = { ...currentUser, fingerprint_id: null };
+      setCurrentUser(updatedUser);
+      setConfirmResetFpModal(false);
+      showToast('Sidik jari berhasil direset. Silakan daftarkan jari baru.', 'success');
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal menghapus sidik jari', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderAuth = () => (
@@ -847,6 +889,21 @@ export default function App() {
                        <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Terdaftar</h4>
                        <p className="text-slate-500 mt-2">ID Sensor Anda: <span className="font-mono bg-slate-100 p-2 rounded text-slate-800 font-bold">{currentUser.fingerprint_id}</span></p>
                        <p className="text-sm mt-6 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">Anda sudah bisa membuka pintu kamar menggunakan sidik jari Anda.</p>
+                       
+                       <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
+                          <button
+                            onClick={() => setResidentEditFpModal(true)}
+                            className="flex items-center justify-center px-5 py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl font-bold text-sm transition"
+                          >
+                            <Edit size={16} className="mr-2" /> Ganti / Edit ID Slot
+                          </button>
+                          <button
+                            onClick={() => setConfirmResetFpModal(true)}
+                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl font-bold text-sm transition"
+                          >
+                            <Trash2 size={16} className="mr-2" /> Hapus / Daftar Ulang Jari
+                          </button>
+                       </div>
                     </div>
                 ) : (
                     <div className="p-6 flex flex-col items-center">
@@ -859,7 +916,10 @@ export default function App() {
                        ) : (
                            <>
                              <p className="text-slate-600 mb-8 font-medium">Letakkan jari Anda pada sensor mesin di pintu kamar untuk mendaftarkan akses masuk.</p>
-                             <button onClick={handleRegisterFingerprint} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-1 transition transform">Mulai Pindai Sidik Jari</button>
+                             <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md">
+                               <button onClick={handleRegisterFingerprint} className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-0.5 transition transform">Mulai Pindai Sidik Jari</button>
+                               <button onClick={() => setResidentEditFpModal(true)} className="flex-1 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Set ID Manual</button>
+                             </div>
                            </>
                        )}
                     </div>
@@ -912,7 +972,87 @@ export default function App() {
                  </div>
               )}
 
-              <button onClick={() => setPaymentModal(null)} className="w-full bg-slate-200 text-slate-800 py-3 rounded-lg font-bold hover:bg-slate-300 transition">Batal / Tutup</button>
+        {}
+        {residentEditFpModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveResidentFp} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
+                  <Fingerprint size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">Ubah ID Sidik Jari</h3>
+                  <p className="text-xs text-slate-500">Sesuaikan nomor ID di sensor pintu</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nomor Slot ID di Sensor (1 - 127)
+                </label>
+                <input
+                  type="number"
+                  name="fingerprint_id"
+                  min="1"
+                  max="127"
+                  defaultValue={currentUser.fingerprint_id || '1'}
+                  placeholder="Contoh: 1"
+                  className="w-full p-3 border rounded-xl font-mono font-bold text-lg text-blue-600 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Masukkan nomor slot ID yang Anda rekam di sensor alat (misal: <strong>ID 1</strong>).
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResidentEditFpModal(false)}
+                  className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md transition"
+                >
+                  {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {}
+        {confirmResetFpModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="font-black text-slate-800 text-lg mb-2">Hapus & Daftar Ulang Jari?</h3>
+              <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                ID sidik jari Anda saat ini akan dihapus dari akun ini. Anda bisa mendaftarkan jari baru atau jari yang lain setelah ini.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmResetFpModal(false)}
+                  className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetResidentFp}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 shadow-md transition"
+                >
+                  {isLoading ? 'Memproses...' : 'Ya, Hapus'}
+                </button>
+              </div>
             </div>
           </div>
         )}
