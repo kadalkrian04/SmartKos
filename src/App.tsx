@@ -319,9 +319,11 @@ export default function App() {
     try {
       const response = await axios.post('/api/users?action=start-enroll', { userId: currentUser.id });
       if (response.data.success) {
+        // Kosongkan ID lokal agar UI langsung masuk mode pemindaian bersih
+        setCurrentUser({ ...currentUser, fingerprint_id: null });
         setIsScanningFP(true);
-        setEnrollCountdown(75);
-        showToast('Mode rekam aktif! Tempelkan jari ke sensor pintu kamar Anda.', 'info');
+        setEnrollCountdown(90);
+        showToast('Mode rekam aktif! Tempelkan jari Anda ke sensor di pintu sekarang.', 'info');
       } else {
         showToast(response.data.message, 'error');
       }
@@ -345,7 +347,7 @@ export default function App() {
     let pollInterval: any;
 
     if (isScanningFP) {
-      // Hitung mundur visual di layar HP
+      // Hitung mundur visual 90 detik di layar HP
       timer = setInterval(() => {
         setEnrollCountdown((prev) => {
           if (prev <= 1) {
@@ -358,28 +360,34 @@ export default function App() {
         });
       }, 1000);
 
-      // Cek ke database apakah alat di pintu sudah selesai merekam
+      // Cek ke database apakah alat di pintu SUDAH mengirim laporan ENROLL_SUCCESS
       pollInterval = setInterval(async () => {
         try {
           const res = await axios.get('/api/users');
           const myData = res.data.find((u: any) => u.id === currentUser.id);
+          
+          // HANYA nyatakan sukses jika database sudah menerima ID baru dari alat fisik!
           if (myData && myData.fingerprint_id) {
-            setCurrentUser({ ...currentUser, fingerprint_id: myData.fingerprint_id });
+            setCurrentUser({ 
+              ...currentUser, 
+              fingerprint_id: myData.fingerprint_id,
+              is_fingerprint_active: true 
+            });
             setIsScanningFP(false);
             clearInterval(pollInterval);
             clearInterval(timer);
-            showToast('🎉 Berhasil! Sidik jari Anda sudah aktif di pintu kamar.', 'success');
+            showToast('🎉 Berhasil! Sidik jari Anda resmi tersimpan di alat dan aktif.', 'success');
             fetchDashboardData();
           }
         } catch (e) {}
-      }, 2500);
+      }, 2000);
     }
 
     return () => {
       if (timer) clearInterval(timer);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [isScanningFP]);
+  }, [isScanningFP, currentUser]);
 
   const handleSaveResidentFp = async (e: any) => {
     e.preventDefault();
