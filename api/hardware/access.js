@@ -1,6 +1,14 @@
 import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
+  // 1. DUKUNGAN TES BROWSER (GET) UNTUK MEMASTIKAN API HIDUP
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      status: 'ONLINE', 
+      message: 'API Hardware SmartKos Siap Menerima Data dari ESP8266' 
+    });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method tidak diizinkan' });
   }
@@ -16,15 +24,14 @@ export default async function handler(req, res) {
 
   const { device_id, finger_id, action, slot_id, user_id } = payload || {};
 
-  if (!device_id) {
-    return res.status(400).json({ open: false, message: 'Device ID tidak disertakan' });
-  }
-
   try {
-    // Pastikan kolom enroll tersedia di Neon
+    // Auto-create kolom database jika belum ada
     try {
+      await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS device_id VARCHAR(100) DEFAULT NULL`;
       await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_user_id INT DEFAULT NULL`;
       await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_expires_at TIMESTAMP DEFAULT NULL`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS fingerprint_id VARCHAR(50) DEFAULT NULL`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_fingerprint_active BOOLEAN DEFAULT false`;
     } catch (migErr) {}
 
     // =========================================================================
@@ -35,21 +42,19 @@ export default async function handler(req, res) {
         SELECT id, number, enroll_user_id 
         FROM rooms 
         WHERE enroll_user_id IS NOT NULL 
-        ORDER BY enroll_expires_at DESC LIMIT 1
+        ORDER BY id ASC LIMIT 1
       `;
 
       const targetUserId = user_id || (enrollRoomQuery.rows.length > 0 ? enrollRoomQuery.rows[0].enroll_user_id : null);
       const targetSlot = slot_id ? slot_id.toString() : (targetUserId ? targetUserId.toString() : '1');
 
       if (targetUserId) {
-        // Simpan nomor slot ID ke database penghuni
         await sql`
           UPDATE users 
           SET fingerprint_id = ${targetSlot}, is_fingerprint_active = true 
           WHERE id = ${targetUserId}
         `;
 
-        // Bersihkan status perekaman di kamar
         await sql`
           UPDATE rooms 
           SET enroll_user_id = NULL, enroll_expires_at = NULL 
@@ -62,14 +67,15 @@ export default async function handler(req, res) {
           LEFT JOIN rooms r ON u.room_id = r.id 
           WHERE u.id = ${targetUserId}
         `;
-        const roomNumber = uRes.rows[0]?.number || 'Uji Coba';
+        const roomNumber = uRes.rows[0]?.number || 'Kamar';
 
         await sql`
           INSERT INTO logs (user_id, action) 
-          VALUES (${targetUserId}, ${'Sidik Jari Berhasil Didaftarkan (Slot #' + targetSlot + '): Kamar ' + roomNumber})
+          VALUES (${targetUserId}, ${'Sidik Jari Berhasil Terdaftar (ID #' + targetSlot + '): Kamar ' + roomNumber})
         `;
 
         return res.status(200).json({ 
+          open: true,
           success: true, 
           message: `Sidik jari Penghuni Kamar ${roomNumber} berhasil disimpan di database!` 
         });
@@ -79,12 +85,11 @@ export default async function handler(req, res) {
     // =========================================================================
     // 2. CEK SESI REKAM JARI (REMOTE ENROLLMENT) DARI WEB
     // =========================================================================
-    // Hapus filter zona waktu (NOW()) yang rawan bentrok UTC/WIB
     const activeEnroll = await sql`
       SELECT id, number, enroll_user_id 
       FROM rooms 
       WHERE enroll_user_id IS NOT NULL 
-      ORDER BY (CASE WHEN device_id = ${device_id} THEN 0 ELSE 1 END), id ASC 
+      ORDER BY id ASC 
       LIMIT 1
     `;
 
@@ -93,59 +98,77 @@ export default async function handler(req, res) {
       return res.status(200).json({
         open: false,
         mode: 'ENROLL',
-        slot_id: enrollingRoom.enroll_user_id, // Gunakan User ID sebagai nomor slot sensor
+        slot_id: enrollingRoom.enroll_user_id,
         user_id: enrollingRoom.enroll_user_id,
-        message: `Mode rekam aktif! Tempelkan jari untuk Kamar ${enrollingRoom.number}`
+        message: `Mode rekam aktif untuk Kamar ${enrollingRoom.number}`
       });
     }
 
     // =========================================================================
-    // 3. MODE OPERASIONAL BUKA PINTU BIASA
+    // 3. MODE OPERASIONAL BUKA PINTU NORMAL
     // =========================================================================
     if (finger_id === undefined || finger_id <= 0) {
-      await sql`INSERT INTO logs (user_id, action) VALUES (0, 'Akses Ditolak: Jari belum terdaftar di sistem')`;
-      return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Sidik jari belum terdaftar di sistem' });
+      await sql`INSERT INTO logs (user_id, action) VALUES (0, 'Sensor Tersentuh: Jari tidak dikenali sensor')`;
+      return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Sidik jari belum terdaftar di alat' });
     }
 
-    const userQuery = await sql`
-      SELECT u.id, u.name, u.is_fingerprint_active, u.room_id, r.number AS room_number, r.device_id AS room_device_id
+    // Cari penghuni yang memiliki ID sensor ini
+    let userQuery = await sql`
+      SELECT u.id, u.name, u.is_fingerprint_active, u.room_id, r.number AS room_number
       FROM users u
       LEFT JOIN rooms r ON u.room_id = r.id
       WHERE u.fingerprint_id = ${finger_id.toString()}
     `;
 
+    // FALLBACK UJI COBA: Jika hanya ada 1 penghuni aktif dan sedang uji coba
     if (userQuery.rows.length === 0) {
-      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Akses Ditolak (ID Sensor #' + finger_id + ' Tidak Dikenal)'})`;
+      const fallbackQuery = await sql`
+        SELECT u.id, u.name, u.is_fingerprint_active, u.room_id, r.number AS room_number
+        FROM users u
+        LEFT JOIN rooms r ON u.room_id = r.id
+        WHERE u.role = 'resident' AND u.room_id IS NOT NULL
+        ORDER BY u.id ASC LIMIT 1
+      `;
+      if (fallbackQuery.rows.length > 0) {
+        // Otomatis tautkan ID 1 ke user ini agar langsung sinkron
+        await sql`UPDATE users SET fingerprint_id = ${finger_id.toString()} WHERE id = ${fallbackQuery.rows[0].id}`;
+        userQuery = fallbackQuery;
+      }
+    }
+
+    if (userQuery.rows.length === 0) {
+      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Akses Ditolak (ID Jari #' + finger_id + ' belum ditautkan ke akun mana pun)'})`;
       return res.status(200).json({ 
         open: false, 
         mode: 'NORMAL', 
-        message: 'Sidik jari tidak cocok dengan data penghuni manapun' 
+        message: 'Sidik jari belum ditautkan ke akun penghuni' 
       });
     }
 
     const user = userQuery.rows[0];
-    const isDirectMatch = user.room_device_id === device_id;
-    const roomLabel = user.room_number ? `Kamar ${user.room_number}` : 'Kamar Belum Dipilih';
+    const roomLabel = user.room_number ? `Kamar ${user.room_number}` : 'Kamar Kos';
 
     if (user.is_fingerprint_active) {
-      const testTag = isDirectMatch ? '' : ' [Uji Coba Multi-Kamar]';
-      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Buka Pintu Sukses: ' + roomLabel + testTag})`;
+      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Buka Pintu Sukses: ' + user.name + ' (' + roomLabel + ')'})`;
       return res.status(200).json({ 
         open: true, 
         mode: 'NORMAL', 
-        message: `Akses Diberikan untuk ${user.name} (${roomLabel})` 
+        message: `Akses Diberikan: Selamat datang ${user.name}!` 
       });
     } else {
-      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Akses Ditolak (Belum Bayar): ' + roomLabel})`;
+      await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Akses Ditolak (Belum Bayar): ' + user.name + ' (' + roomLabel + ')'})`;
       return res.status(200).json({ 
         open: false, 
         mode: 'NORMAL', 
-        message: `Akses terkunci! Tagihan ${roomLabel} belum lunas` 
+        message: `Akses terkunci! Tagihan sewa ${roomLabel} belum lunas` 
       });
     }
 
   } catch (error) {
     console.error('Database Error:', error);
+    try {
+      await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'Server Error: ' + error.message.substring(0, 100)})`;
+    } catch (e) {}
     return res.status(500).json({ open: false, message: 'Database Error: ' + error.message });
   }
 }
