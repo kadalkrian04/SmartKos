@@ -21,11 +21,16 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Pastikan kolom enroll tersedia di Neon
+    try {
+      await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_user_id INT DEFAULT NULL`;
+      await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_expires_at TIMESTAMP DEFAULT NULL`;
+    } catch (migErr) {}
+
     // =========================================================================
     // 1. TAHAP KONFIRMASI PENDAFTARAN SIDIK JARI SUKSES (ENROLL_SUCCESS)
     // =========================================================================
     if (action === 'ENROLL_SUCCESS') {
-      // Cari kamar manapun yang sedang dalam sesi perekaman aktif
       const enrollRoomQuery = await sql`
         SELECT id, number, enroll_user_id 
         FROM rooms 
@@ -51,7 +56,6 @@ export default async function handler(req, res) {
           WHERE enroll_user_id = ${targetUserId}
         `;
 
-        // Ambil data kamar penghuni untuk dicatat ke log
         const uRes = await sql`
           SELECT u.name, r.number 
           FROM users u 
@@ -74,7 +78,6 @@ export default async function handler(req, res) {
 
     // =========================================================================
     // 2. CEK SESI REKAM JARI (REMOTE ENROLLMENT) DARI WEB
-    // Mendukung 1 alat fisik di meja untuk melayani rekam jari kamar manapun!
     // =========================================================================
     const activeEnroll = await sql`
       SELECT id, number, enroll_user_id, enroll_expires_at 
@@ -103,7 +106,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ open: false, mode: 'NORMAL', message: 'Sidik jari belum terdaftar di sistem' });
     }
 
-    // Cari penghuni pemilik nomor sidik jari ini di tabel users
     const userQuery = await sql`
       SELECT u.id, u.name, u.is_fingerprint_active, u.room_id, r.number AS room_number, r.device_id AS room_device_id
       FROM users u
@@ -124,7 +126,6 @@ export default async function handler(req, res) {
     const isDirectMatch = user.room_device_id === device_id;
     const roomLabel = user.room_number ? `Kamar ${user.room_number}` : 'Kamar Belum Dipilih';
 
-    // Cek status hak akses & tagihan lunas
     if (user.is_fingerprint_active) {
       const testTag = isDirectMatch ? '' : ' [Uji Coba Multi-Kamar]';
       await sql`INSERT INTO logs (user_id, action) VALUES (${user.id}, ${'Buka Pintu Sukses: ' + roomLabel + testTag})`;

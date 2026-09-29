@@ -33,37 +33,65 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      // =========================================================================
       // 1. MEMULAI SESI REKAM JARI JARAK JAUH DARI WEB
+      // =========================================================================
       if (action === 'start-enroll') {
         const { userId } = req.body;
-        const userRes = await sql`SELECT room_id, is_fingerprint_active FROM users WHERE id = ${userId}`;
+        const userRes = await sql`SELECT id, name, room_id, is_fingerprint_active FROM users WHERE id = ${userId}`;
+        
         if (userRes.rows.length === 0 || !userRes.rows[0].room_id) {
-          return res.status(400).json({ success: false, message: 'Anda belum terdaftar di kamar manapun!' });
+          return res.status(400).json({ success: false, message: 'Anda belum memilih kamar! Silakan pilih kamar terlebih dahulu.' });
         }
+        
         if (!userRes.rows[0].is_fingerprint_active) {
-          return res.status(400).json({ success: false, message: 'Selesaikan tagihan sewa kamar Anda terlebih dahulu!' });
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Akses terkunci! Tagihan kamar Anda belum lunas. Hubungi Admin atau bayar via QRIS terlebih dahulu.' 
+          });
         }
 
         const roomId = userRes.rows[0].room_id;
-        // Buka jendela pendaftaran selama 90 detik di kamar tersebut
-        await sql`
-          UPDATE rooms 
-          SET enroll_user_id = ${userId}, enroll_expires_at = NOW() + INTERVAL '90 seconds' 
-          WHERE id = ${roomId}
-        `;
+
+        // Auto-Fix: Pastikan kolom database tersedia sebelum update
+        try {
+          await sql`
+            UPDATE rooms 
+            SET enroll_user_id = ${userId}, enroll_expires_at = NOW() + INTERVAL '90 seconds' 
+            WHERE id = ${roomId}
+          `;
+        } catch (dbColError) {
+          // Buat kolom jika belum ada di database Neon
+          await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_user_id INT DEFAULT NULL`;
+          await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_expires_at TIMESTAMP DEFAULT NULL`;
+          await sql`
+            UPDATE rooms 
+            SET enroll_user_id = ${userId}, enroll_expires_at = NOW() + INTERVAL '90 seconds' 
+            WHERE id = ${roomId}
+          `;
+        }
 
         await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, 'Memulai Sesi Rekam Jari Jarak Jauh (Waktu: 90 Detik)')`;
-        return res.status(200).json({ success: true, message: 'Sistem pintu siap merekam. Silakan tempelkan jari Anda ke sensor.' });
+        return res.status(200).json({ 
+          success: true, 
+          message: 'Sistem pintu siaga! Silakan tempelkan jari Anda ke sensor pintu.' 
+        });
       }
 
+      // =========================================================================
       // 2. MEMBATALKAN SESI REKAM JARI
+      // =========================================================================
       if (action === 'cancel-enroll') {
         const { userId } = req.body;
-        await sql`UPDATE rooms SET enroll_user_id = NULL, enroll_expires_at = NULL WHERE resident_id = ${userId}`;
+        try {
+          await sql`UPDATE rooms SET enroll_user_id = NULL, enroll_expires_at = NULL WHERE enroll_user_id = ${userId}`;
+        } catch (e) {}
         return res.status(200).json({ success: true, message: 'Sesi pendaftaran dibatalkan' });
       }
 
+      // =========================================================================
       // 3. AKSI PILIH KAMAR
+      // =========================================================================
       if (action === 'choose-room') {
         const { userId, roomId } = req.body;
         const roomData = await sql`SELECT price, number FROM rooms WHERE id = ${roomId} AND status = 'available'`;
