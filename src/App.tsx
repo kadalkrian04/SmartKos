@@ -515,8 +515,8 @@ export default function App() {
                     <th className="p-4">Nama</th>
                     <th className="p-4">Username</th>
                     <th className="p-4">Kamar</th>
-                    <th className="p-4">ID Slot Sensor</th>
-                    <th className="p-4">Status Hak Akses</th>
+                    <th className="p-4">Status Sidik Jari</th>
+                    <th className="p-4">Status Tagihan</th>
                     <th className="p-4">Aksi</th>
                   </tr>
                 </thead>
@@ -525,15 +525,16 @@ export default function App() {
                     <tr key={u.id} className="hover:bg-slate-50">
                       <td className="p-4 font-bold">{u.name}</td>
                       <td className="p-4 text-slate-500">{u.username}</td>
-                      <td className="p-4">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
-                      {}
+                      <td className="p-4 font-bold">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
                       <td className="p-4">
                         {u.fingerprint_id ? (
-                          <span className="font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-200">
-                            ID #{u.fingerprint_id}
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
+                            <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic">Belum Ada</span>
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                            Belum Didaftarkan
+                          </span>
                         )}
                       </td>
                       <td className="p-4">
@@ -541,20 +542,32 @@ export default function App() {
                            <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
                         ) : !u.is_fingerprint_active ? (
                            <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
-                        ) : !u.fingerprint_id ? (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-yellow-100 text-yellow-700">AKTIF (FINGER BELUM)</span>
                         ) : (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">TERDAFTAR & AKTIF</span>
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
                         )}
                       </td>
-                      {}
                       <td className="p-4">
                         <button
-                          onClick={() => setUserFpModal(u)}
-                          className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                          onClick={async () => {
+                            try {
+                              setIsLoading(true);
+                              await axios.put('/api/users', {
+                                userId: u.id,
+                                fingerprint_id: u.id.toString(),
+                                is_fingerprint_active: true
+                              });
+                              showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
+                              fetchDashboardData();
+                            } catch(e) {
+                              showToast('Gagal mengaktifkan', 'error');
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
                         >
-                          <Fingerprint size={14} className="mr-1.5 text-blue-400" />
-                          Atur ID Jari
+                          <ShieldCheck size={14} className="mr-1.5" />
+                          {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
                         </button>
                       </td>
                     </tr>
@@ -937,19 +950,20 @@ export default function App() {
 
           {view === 'resident_fingerprint' && (
              <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
-                <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Pendaftaran Sidik Jari</h3>
+                <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
                 {!isActive ? (
                     <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
                       <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
-                      <p className="font-bold">Akses Ditolak</p>
-                      <p className="text-sm mt-2">Anda belum bisa mendaftar sidik jari. Silakan lunasi tagihan sewa kamar Anda terlebih dahulu pada menu Beranda.</p>
+                      <p className="font-bold">Akses Kamar Terkunci</p>
+                      <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
                     </div>
                 ) : currentUser.fingerprint_id ? (
                     <div className="p-6">
                        <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
-                       <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Terdaftar</h4>
-                       <p className="text-slate-500 mt-2">ID Sensor Anda: <span className="font-mono bg-slate-100 p-2 rounded text-slate-800 font-bold">Slot #{currentUser.fingerprint_id}</span></p>
-                       <p className="text-sm mt-6 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">Anda sudah bisa membuka pintu kamar menggunakan sidik jari Anda.</p>
+                       <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
+                       <p className="text-sm mt-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">
+                         Pintu kamar Anda sudah bisa dibuka kapan saja dengan menempelkan jari Anda ke sensor di pintu.
+                       </p>
                        
                        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
                           <button
@@ -957,13 +971,14 @@ export default function App() {
                             disabled={isLoading}
                             className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition"
                           >
-                            <RefreshCcw size={16} className="mr-2" /> Rekam Ulang / Ganti Jari di Pintu
+                            <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
                           </button>
                           <button
-                            onClick={() => setResidentEditFpModal(true)}
-                            className="flex items-center justify-center px-5 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl font-bold text-sm transition"
+                            onClick={handleResetResidentFp}
+                            disabled={isLoading}
+                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200"
                           >
-                            <Edit size={16} className="mr-2" /> Edit Slot Manual
+                            <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
                           </button>
                        </div>
                     </div>
@@ -986,15 +1001,15 @@ export default function App() {
                                <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
                                  <p className="flex items-start">
                                    <span className="font-bold text-blue-600 mr-2">1.</span>
-                                   <span><strong>Tempelkan jari</strong> ke sensor pintu (Relay berbunyi cetek).</span>
+                                   <span><strong>Tempelkan jari</strong> ke sensor pintu (Relay bunyi cetek).</span>
                                  </p>
                                  <p className="flex items-start">
                                    <span className="font-bold text-blue-600 mr-2">2.</span>
-                                   <span><strong>Angkat jari</strong> Anda dari kaca sensor.</span>
+                                   <span><strong>Angkat jari</strong> Anda dari sensor.</span>
                                  </p>
                                  <p className="flex items-start">
                                    <span className="font-bold text-blue-600 mr-2">3.</span>
-                                   <span><strong>Tempelkan lagi</strong> jari yang sama sampai pintu terbuka!</span>
+                                   <span><strong>Tempelkan lagi jari yang sama</strong> sampai pintu terbuka!</span>
                                  </p>
                                 </div>
                              </div>
@@ -1007,15 +1022,49 @@ export default function App() {
                              </button>
                            </div>
                        ) : (
-                           <>
-                             <p className="text-slate-600 mb-6 font-medium">Klik tombol di bawah ini, lalu ikuti panduan untuk menempelkan jari ke sensor di pintu kamar.</p>
-                             <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md">
-                               <button onClick={handleStartEnrollment} disabled={isLoading} className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-0.5 transition transform flex items-center justify-center">
-                                 <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu
+                           <div className="w-full max-w-md space-y-4">
+                             <p className="text-slate-600 text-sm font-medium">Pilih salah satu cara termudah untuk mengaktifkan sidik jari kamar Anda:</p>
+                             
+                             <div className="space-y-3">
+                               <button 
+                                 onClick={handleStartEnrollment} 
+                                 disabled={isLoading} 
+                                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm"
+                               >
+                                 <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
                                </button>
-                               <button onClick={() => setResidentEditFpModal(true)} className="flex-1 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Set ID Manual</button>
+
+                               <div className="relative flex py-1 items-center">
+                                 <div className="flex-grow border-t border-slate-200"></div>
+                                 <span className="flex-shrink mx-3 text-slate-400 text-xs uppercase font-bold">atau jurus instan</span>
+                                 <div className="flex-grow border-t border-slate-200"></div>
+                               </div>
+
+                               <button 
+                                 onClick={async () => {
+                                   try {
+                                     setIsLoading(true);
+                                     await axios.put('/api/users', {
+                                       userId: currentUser.id,
+                                       fingerprint_id: currentUser.id.toString(),
+                                       is_fingerprint_active: true
+                                     });
+                                     setCurrentUser({ ...currentUser, fingerprint_id: currentUser.id.toString(), is_fingerprint_active: true });
+                                     showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
+                                     fetchDashboardData();
+                                   } catch(e) {
+                                     showToast('Gagal mengaktifkan', 'error');
+                                   } finally {
+                                     setIsLoading(false);
+                                   }
+                                 }}
+                                 disabled={isLoading} 
+                                 className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200"
+                               >
+                                 <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
+                               </button>
                              </div>
-                           </>
+                           </div>
                        )}
                     </div>
                 )}
