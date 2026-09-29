@@ -972,7 +972,18 @@ export default function App() {
                  </div>
               )}
 
-        {}
+              <button
+                type="button"
+                onClick={() => setPaymentModal(null)}
+                className="w-full py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Ubah ID Sidik Jari Penghuni */}
         {residentEditFpModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <form onSubmit={handleSaveResidentFp} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
