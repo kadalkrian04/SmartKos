@@ -79,11 +79,12 @@ export default async function handler(req, res) {
     // =========================================================================
     // 2. CEK SESI REKAM JARI (REMOTE ENROLLMENT) DARI WEB
     // =========================================================================
+    // Hapus filter zona waktu (NOW()) yang rawan bentrok UTC/WIB
     const activeEnroll = await sql`
-      SELECT id, number, enroll_user_id, enroll_expires_at 
+      SELECT id, number, enroll_user_id 
       FROM rooms 
-      WHERE enroll_user_id IS NOT NULL AND enroll_expires_at > NOW()
-      ORDER BY (CASE WHEN device_id = ${device_id} THEN 0 ELSE 1 END), enroll_expires_at DESC 
+      WHERE enroll_user_id IS NOT NULL 
+      ORDER BY (CASE WHEN device_id = ${device_id} THEN 0 ELSE 1 END), id ASC 
       LIMIT 1
     `;
 

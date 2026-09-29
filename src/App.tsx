@@ -36,6 +36,7 @@ export default function App() {
   const [userFpModal, setUserFpModal] = useState<any>(null);
   const [residentEditFpModal, setResidentEditFpModal] = useState(false);
   const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
+  const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
@@ -376,7 +377,7 @@ export default function App() {
             setIsScanningFP(false);
             clearInterval(pollInterval);
             clearInterval(timer);
-            showToast('🎉 Berhasil! Sidik jari Anda resmi tersimpan di alat dan aktif.', 'success');
+            setEnrollSuccessModal({ slot_id: myData.fingerprint_id });
             fetchDashboardData();
           }
         } catch (e) {}
@@ -947,7 +948,7 @@ export default function App() {
                     <div className="p-6">
                        <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
                        <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Terdaftar</h4>
-                       <p className="text-slate-500 mt-2">ID Sensor Anda: <span className="font-mono bg-slate-100 p-2 rounded text-slate-800 font-bold">{currentUser.fingerprint_id}</span></p>
+                       <p className="text-slate-500 mt-2">ID Sensor Anda: <span className="font-mono bg-slate-100 p-2 rounded text-slate-800 font-bold">Slot #{currentUser.fingerprint_id}</span></p>
                        <p className="text-sm mt-6 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">Anda sudah bisa membuka pintu kamar menggunakan sidik jari Anda.</p>
                        
                        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
@@ -968,26 +969,46 @@ export default function App() {
                     </div>
                 ) : (
                     <div className="p-6 flex flex-col items-center">
-                       <Fingerprint size={80} className={`mb-6 ${isScanningFP ? 'text-blue-500 animate-pulse' : 'text-slate-300'}`} />
+                       <Fingerprint size={80} className={`mb-4 ${isScanningFP ? 'text-blue-500 animate-bounce' : 'text-slate-300'}`} />
                        {isScanningFP ? (
-                           <div className="text-blue-600 space-y-3">
-                             <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
-                               <p className="font-black text-xl mb-1 text-blue-700">SIAGA MEREKAM JARI</p>
-                               <p className="text-sm text-slate-600 mb-2">Tempelkan jari Anda ke sensor di pintu, angkat, lalu tempelkan sekali lagi.</p>
-                               <span className="inline-block px-3 py-1 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
-                                 Sisa Waktu: {enrollCountdown} Detik
-                               </span>
+                           <div className="w-full max-w-md space-y-4">
+                             <div className="bg-gradient-to-b from-blue-50 to-indigo-50 border-2 border-blue-300 p-5 rounded-2xl shadow-sm text-left">
+                               <div className="flex justify-between items-center mb-3">
+                                 <span className="font-black text-sm text-blue-900 tracking-wide flex items-center">
+                                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping mr-2"></span>
+                                   ALAT SIAGA MEREKAM
+                                 </span>
+                                 <span className="px-3 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
+                                   {enrollCountdown}s
+                                 </span>
+                               </div>
+
+                               <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">1.</span>
+                                   <span><strong>Tempelkan jari</strong> ke sensor pintu (Relay berbunyi cetek).</span>
+                                 </p>
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">2.</span>
+                                   <span><strong>Angkat jari</strong> Anda dari kaca sensor.</span>
+                                 </p>
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">3.</span>
+                                   <span><strong>Tempelkan lagi</strong> jari yang sama sampai pintu terbuka!</span>
+                                 </p>
+                                </div>
                              </div>
+
                              <button
                                onClick={handleCancelEnrollment}
-                               className="text-xs text-red-500 hover:underline font-bold mt-2"
+                               className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1"
                              >
                                Batalkan Perekaman
                              </button>
                            </div>
                        ) : (
                            <>
-                             <p className="text-slate-600 mb-6 font-medium">Klik tombol di bawah ini, lalu tempelkan jari Anda ke sensor di pintu kamar untuk mendaftarkan akses masuk secara otomatis.</p>
+                             <p className="text-slate-600 mb-6 font-medium">Klik tombol di bawah ini, lalu ikuti panduan untuk menempelkan jari ke sensor di pintu kamar.</p>
                              <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md">
                                <button onClick={handleStartEnrollment} disabled={isLoading} className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:-translate-y-0.5 transition transform flex items-center justify-center">
                                  <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu
@@ -1085,9 +1106,6 @@ export default function App() {
                   className="w-full p-3 border rounded-xl font-mono font-bold text-lg text-blue-600 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Masukkan nomor slot ID yang Anda rekam di sensor alat (misal: <strong>ID 1</strong>).
-                </p>
               </div>
 
               <div className="flex gap-2">
@@ -1103,14 +1121,14 @@ export default function App() {
                   disabled={isLoading}
                   className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md transition"
                 >
-                  {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  {isLoading ? 'Menyimpan...' : 'Simpan ID'}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {}
+        {/* Modal Konfirmasi Hapus Sidik Jari */}
         {confirmResetFpModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
@@ -1138,6 +1156,34 @@ export default function App() {
                   {isLoading ? 'Memproses...' : 'Ya, Hapus'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Pop-up Sukses Besar Perekaman Sidik Jari */}
+        {enrollSuccessModal && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border text-center transform transition-all scale-100">
+              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                <CheckCircle size={44} className="animate-pulse" />
+              </div>
+              <h3 className="font-black text-slate-800 text-2xl mb-2">Perekaman Sukses!</h3>
+              <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                Sidik jari Anda berhasil disimpan di sensor fisik pada <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Slot #{enrollSuccessModal.slot_id}</span>.
+              </p>
+              <div className="bg-green-50 border border-green-200 p-3.5 rounded-xl text-green-800 text-xs font-bold mb-6">
+                🎉 Pintu kamar otomatis terbuka & hak akses sidik jari Anda resmi aktif!
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnrollSuccessModal(null);
+                  setView('resident_dashboard');
+                }}
+                className="w-full py-3.5 bg-green-600 text-white rounded-xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-600/30 transition"
+              >
+                Selesai & Ke Beranda
+              </button>
             </div>
           </div>
         )}
