@@ -258,7 +258,7 @@ export default function App() {
 
   const handleChooseRoom = async (roomId: number) => {
     try {
-      const response = await axios.post('/api/users/choose-room', { userId: currentUser.id, roomId });
+      const response = await axios.post('/api/users?action=choose-room', { userId: currentUser.id, roomId });
       if (response.data.success) {
         showToast('Kamar dipesan! Segera lunasi dalam waktu 10 Menit.', 'success');
         setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
@@ -317,7 +317,7 @@ export default function App() {
     setIsScanningFP(true);
     setTimeout(async () => {
       try {
-        const response = await axios.post('/api/users/fingerprint', { userId: currentUser.id });
+        const response = await axios.post('/api/users?action=fingerprint', { userId: currentUser.id });
         if(response.data.success) {
            setCurrentUser({...currentUser, fingerprint_id: response.data.fingerprint_id});
            showToast(response.data.message, 'success');
