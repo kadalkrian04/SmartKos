@@ -784,11 +784,11 @@ export default function App() {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto text-sm">
           {[
             { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
-            { id: 'admin_users', icon: Users, label: 'Data Penghuni' },
             { id: 'admin_payments', icon: CreditCard, label: 'Pembayaran' },
             { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
             { id: 'admin_reports', icon: BarChart3, label: 'Laporan Keuangan' },
             { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
+            { id: 'admin_users', icon: Users, label: 'Kelola User' },
             { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
           ].map(item => (
             <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${(view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history'))) ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
@@ -1323,11 +1323,11 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW: DATA PENGHUNI */}
+        {/* VIEW: KELOLA USER */}
         {/* ========================================================================= */}
         {view === 'admin_users' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
-            <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
+            <h3 className="font-bold mb-6 text-lg">Kelola User (Penghuni Aktif)</h3>
             <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b">
                   <tr>
