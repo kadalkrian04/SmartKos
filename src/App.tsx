@@ -108,6 +108,26 @@ const formatDateSafe = (dateVal: any) => {
   }
 };
 
+const formatDueDate25 = (dateVal: any) => {
+  if (!dateVal) {
+    const now = new Date();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `25/${m}/${now.getFullYear()}`;
+  }
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) {
+      const now = new Date();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      return `25/${m}/${now.getFullYear()}`;
+    }
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `25/${m}/${d.getFullYear()}`;
+  } catch (e) {
+    return '25/-';
+  }
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
@@ -1094,7 +1114,7 @@ export default function App() {
                   const masukDateStr = formatDateSafe(resident?.created_at);
                   const latestBill = residentBills[0];
                   const dueRaw = latestBill?.due_date || resident?.active_until;
-                  const dueDateStr = formatDateSafe(dueRaw);
+                  const dueDateStr = formatDueDate25(dueRaw);
 
                   const residentPhone = resident?.phone || (resident?.username ? `@${resident.username}` : '-');
                   const residentName = resident?.name || (room.resident_id ? `Penghuni #${room.resident_id}` : 'Penghuni Aktif');
@@ -1285,8 +1305,8 @@ export default function App() {
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
                               </span>
                             </td>
-                            <td className="p-4 text-slate-600">
-                              {formatDateSafe(b.due_date)}
+                            <td className="p-4 text-slate-600 font-semibold">
+                              {formatDueDate25(b.due_date)}
                             </td>
                             <td className="p-4 text-center">
                               <div className="inline-flex items-center gap-2">
@@ -2296,7 +2316,7 @@ export default function App() {
                         <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
                         <h2 className="text-4xl font-black text-slate-800 my-4">Rp {Number(pendingBill.nominal).toLocaleString('id-ID')}</h2>
                         <p className="text-xs font-mono font-bold text-slate-500 mb-2">Invoice: {pendingBill.ref_id}</p>
-                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {formatDateSafe(pendingBill.due_date)}</p>
+                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {formatDueDate25(pendingBill.due_date)}</p>
                         <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
                       </div>
                     </div>

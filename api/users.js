@@ -102,9 +102,21 @@ export default async function handler(req, res) {
 
         // Format ADIBKOS-[USER_ID]-[TIMESTAMP]
         const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
+
         await sql`
           INSERT INTO bills (user_id, nominal, month, due_date, ref_id, payment_method)
-          VALUES (${userId}, ${roomPrice}, TO_CHAR(CURRENT_DATE, 'Month YYYY'), CURRENT_DATE + INTERVAL '1 days', ${refId}, 'QRIS')
+          VALUES (
+            ${userId}, 
+            ${roomPrice}, 
+            TO_CHAR(CURRENT_DATE, 'Month YYYY'), 
+            CASE 
+              WHEN EXTRACT(DAY FROM CURRENT_DATE) <= 25 
+              THEN (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '24 days')::DATE
+              ELSE (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' + INTERVAL '24 days')::DATE
+            END, 
+            ${refId}, 
+            'QRIS'
+          )
         `;
 
         return res.status(200).json({ success: true, message: 'Berhasil memilih kamar dan tagihan telah dibuat' });

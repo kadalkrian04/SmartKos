@@ -77,7 +77,7 @@ export default async function handler(req, res) {
           await sql`
             UPDATE users 
             SET is_fingerprint_active = true, 
-                active_until = CURRENT_DATE + INTERVAL '37 days' 
+                active_until = (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' + INTERVAL '24 days')::DATE 
             WHERE id = ${userId}
           `;
           await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, ${'Pembayaran Lunas via ' + detectedMethod + ': ' + ref_id})`;
