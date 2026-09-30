@@ -1,15 +1,13 @@
-/* STREAMING_CHUNK:Mengimpor dependencies React dan Lucide icons... */
 import React, { useState, useEffect } from 'react';
 import { 
   Users, DoorOpen, CreditCard, Settings, LogOut, 
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
-  BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet
+  BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download
 } from 'lucide-react';
 import axios from 'axios';
 
-/* STREAMING_CHUNK:Mendefinisikan komponen utama App dan state aplikasi... */
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
@@ -44,7 +42,6 @@ export default function App() {
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
 
-  /* STREAMING_CHUNK:Menginisialisasi state filter laporan keuangan... */
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -67,7 +64,6 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* STREAMING_CHUNK:Menyinkronkan sesi login ke local storage... */
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('smartkos_user', JSON.stringify(currentUser));
@@ -78,7 +74,6 @@ export default function App() {
     }
   }, [currentUser, view]);
 
-  /* STREAMING_CHUNK:Mengambil data dashboard dari server... */
   const fetchDashboardData = async (isManual = false) => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -124,7 +119,6 @@ export default function App() {
     if (view !== 'login' && view !== 'register') fetchDashboardData();
   }, [view]);
 
-  /* STREAMING_CHUNK:Menangani polling status pembayaran QRIS... */
   useEffect(() => {
     let intervalId: any;
 
@@ -153,7 +147,6 @@ export default function App() {
     return () => { if (intervalId) clearInterval(intervalId); };
   }, [paymentModal]);
 
-  /* STREAMING_CHUNK:Mengelola autentikasi login dan registrasi... */
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -196,7 +189,6 @@ export default function App() {
     localStorage.removeItem('smartkos_view');
   };
 
-  /* STREAMING_CHUNK:Menangani manajemen kamar dan kontrol hardware... */
   const handleSaveRoom = async (e: any) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -258,7 +250,6 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  /* STREAMING_CHUNK:Menangani pencatatan pengeluaran kos... */
   const handleSaveExpense = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -454,7 +445,6 @@ export default function App() {
     }
   };
 
-  /* STREAMING_CHUNK:Menghitung statistik keuangan dan hunian... */
   const totalPemasukan = bills
     .filter(b => b.status === 'lunas')
     .reduce((sum, b) => sum + (Number(b.nominal) || 0), 0);
@@ -472,7 +462,6 @@ export default function App() {
   const kamarKosongCount = rooms.filter(r => r.status === 'available').length;
   const occupancyPercent = Math.round((kamarTerisiCount / totalKamarCount) * 100);
 
-  /* STREAMING_CHUNK:Menghitung filter laporan keuangan berdasarkan tanggal... */
   const handleApplyReportFilter = () => {
     setAppliedStartDate(reportStartDate);
     setAppliedEndDate(reportEndDate);
@@ -500,7 +489,121 @@ export default function App() {
   const reportPengeluaran = filteredReportExpenses.reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
   const reportKeuntunganBersih = reportPemasukan - reportPengeluaran;
 
-  /* STREAMING_CHUNK:Membuat data tren 6 bulan terakhir untuk grafik batang... */
+  const combinedReportTransactions = [
+    ...filteredReportBills.map(b => {
+      const user = users.find(u => u.id === b.user_id);
+      const room = rooms.find(r => r.id === user?.room_id);
+      return {
+        id: `bill-${b.id}`,
+        date: (b.created_at || b.due_date || '').split('T')[0],
+        type: 'Pemasukan',
+        category: room ? `Kamar ${room.number}` : 'Sewa Kamar',
+        description: `Pembayaran Sewa: ${user?.name || `User #${b.user_id}`}`,
+        income: Number(b.nominal) || 0,
+        expense: 0
+      };
+    }),
+    ...filteredReportExpenses.map(e => ({
+      id: `exp-${e.id}`,
+      date: (e.expense_date || e.created_at || '').split('T')[0],
+      type: 'Pengeluaran',
+      category: e.category || 'Operasional',
+      description: e.title || '-',
+      income: 0,
+      expense: Number(e.nominal) || 0
+    }))
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const handleExportExcel = () => {
+    if (combinedReportTransactions.length === 0) {
+      showToast('Tidak ada data transaksi pada rentang tanggal ini untuk diekspor', 'error');
+      return;
+    }
+
+    let runningBalance = 0;
+    const rowsHtml = combinedReportTransactions.map((t, idx) => {
+      runningBalance += (t.income - t.expense);
+      return `
+        <tr>
+          <td style="text-align:center;border:1px solid #94a3b8;">${idx + 1}</td>
+          <td style="text-align:center;border:1px solid #94a3b8;">${t.date}</td>
+          <td style="text-align:center;font-weight:bold;color:${t.type === 'Pemasukan' ? '#0284c7' : '#e11d48'};border:1px solid #94a3b8;">${t.type}</td>
+          <td style="border:1px solid #94a3b8;">${t.category}</td>
+          <td style="border:1px solid #94a3b8;">${t.description}</td>
+          <td style="text-align:right;border:1px solid #94a3b8;color:#0284c7;">${t.income > 0 ? t.income.toLocaleString('id-ID') : '-'}</td>
+          <td style="text-align:right;border:1px solid #94a3b8;color:#e11d48;">${t.expense > 0 ? t.expense.toLocaleString('id-ID') : '-'}</td>
+          <td style="text-align:right;font-weight:bold;border:1px solid #94a3b8;color:${runningBalance >= 0 ? '#16a34a' : '#e11d48'};">${runningBalance.toLocaleString('id-ID')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+          th { background-color: #1e293b; color: #ffffff; border: 1px solid #0f172a; padding: 8px 12px; font-size: 11pt; text-align: center; }
+          td { padding: 6px 10px; vertical-align: middle; }
+          .header-box { background-color: #f1f5f9; font-weight: bold; border: 1px solid #cbd5e1; text-align: center; }
+          .title { font-size: 16pt; font-weight: bold; text-align: center; }
+          .subtitle { font-size: 11pt; text-align: center; color: #475569; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="8" class="title">LAPORAN ARUS KAS & KEUANGAN SMARTKOS</td></tr>
+          <tr><td colspan="8" class="subtitle">Periode: ${appliedStartDate} s/d ${appliedEndDate} | Tanggal Ekspor: ${new Date().toLocaleDateString('id-ID')}</td></tr>
+          <tr><td colspan="8"></td></tr>
+          <tr>
+            <td colspan="2" class="header-box">TOTAL PEMASUKAN</td>
+            <td colspan="3" class="header-box">TOTAL PENGELUARAN</td>
+            <td colspan="3" class="header-box">KEUNTUNGAN BERSIH (LABA)</td>
+          </tr>
+          <tr style="font-size: 13pt; font-weight: bold;">
+            <td colspan="2" style="border:1px solid #cbd5e1; color:#0284c7; text-align:center;">Rp ${reportPemasukan.toLocaleString('id-ID')}</td>
+            <td colspan="3" style="border:1px solid #cbd5e1; color:#e11d48; text-align:center;">Rp ${reportPengeluaran.toLocaleString('id-ID')}</td>
+            <td colspan="3" style="border:1px solid #cbd5e1; color:${reportKeuntunganBersih >= 0 ? '#16a34a' : '#e11d48'}; text-align:center;">Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}</td>
+          </tr>
+          <tr><td colspan="8"></td></tr>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Tanggal</th>
+              <th>Tipe</th>
+              <th>Kamar / Kategori</th>
+              <th>Keterangan / Penghuni</th>
+              <th>Pemasukan (Rp)</th>
+              <th>Pengeluaran (Rp)</th>
+              <th>Saldo Kumulatif (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            <tr style="background-color: #f8fafc; font-weight: bold;">
+              <td colspan="5" style="text-align: right; border: 1px solid #94a3b8;">TOTAL:</td>
+              <td style="text-align: right; border: 1px solid #94a3b8; color: #0284c7;">Rp ${reportPemasukan.toLocaleString('id-ID')}</td>
+              <td style="text-align: right; border: 1px solid #94a3b8; color: #e11d48;">Rp ${reportPengeluaran.toLocaleString('id-ID')}</td>
+              <td style="text-align: right; border: 1px solid #94a3b8; color: ${reportKeuntunganBersih >= 0 ? '#16a34a' : '#e11d48'};">Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}</td>
+            </tr>
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Laporan_Keuangan_SmartKos_${appliedStartDate}_sd_${appliedEndDate}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('File Excel (.xls) berhasil diunduh!', 'success');
+  };
+
   const getTrend6Months = () => {
     const months = [];
     const now = new Date();
@@ -536,7 +639,6 @@ export default function App() {
     ...trendData.flatMap(d => [d.income, d.expense, Math.abs(d.profit)])
   );
 
-  /* STREAMING_CHUNK:Mengatur pengurutan nomor kamar alami... */
   const sortedRooms = [...rooms].sort((a, b) => {
     const numA = parseInt((a.number || '').toString().replace(/\D/g, ''), 10);
     const numB = parseInt((b.number || '').toString().replace(/\D/g, ''), 10);
@@ -572,7 +674,6 @@ export default function App() {
   const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
   const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
-  /* STREAMING_CHUNK:Merender tampilan autentikasi... */
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border">
@@ -602,7 +703,6 @@ export default function App() {
     </div>
   );
 
-  /* STREAMING_CHUNK:Merender tampilan panel admin dan navigasi sidebar... */
   const renderAdmin = () => (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar Navigasi - Disembunyikan saat cetak PDF */}
@@ -631,7 +731,7 @@ export default function App() {
       </div>
 
       <div className="flex-1 p-4 md:p-8 overflow-y-auto print:p-0 print:bg-white">
-        {/* Topbar Admin - Disembunyikan saat cetak */}
+        {/* Topbar Admin - Disembunyikan saat cetak PDF */}
         <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
           <div>
             <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
@@ -906,22 +1006,19 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW BARU: LAPORAN KEUANGAN LENGKAP & CETAK PDF (SESUAI GAMBAR) */}
+        {/* VIEW: LAPORAN KEUANGAN DENGAN EXPORT EXCEL & CETAK PDF TABEL RESMI */}
         {/* ========================================================================= */}
         {view === 'admin_reports' && (
-          <div className="space-y-6 printable-report">
-            {/* Header Laporan */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-6">
+            {/* Header Laporan Layar (Disembunyikan saat cetak) */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
               <div>
                 <h2 className="text-2xl font-black text-slate-800">Laporan Keuangan</h2>
                 <p className="text-xs text-slate-500 font-medium">Ringkasan pemasukan & pengeluaran berdasarkan rentang tanggal</p>
               </div>
-              <div className="print:block hidden text-right text-xs text-slate-500">
-                Dicetak: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
-              </div>
             </div>
 
-            {/* Filter Rentang Tanggal & Tombol Cetak PDF */}
+            {/* Filter Rentang Tanggal & Tombol Export Excel / Cetak (Disembunyikan saat cetak) */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 print:hidden">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -950,17 +1047,27 @@ export default function App() {
                 </button>
               </div>
 
-              <button 
-                onClick={handlePrintReport}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition"
-              >
-                <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
-              </button>
+              {/* DUA TOMBOL EKSPOR: EXCEL MURNI & CETAK DOKUMEN TABEL */}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleExportExcel}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition"
+                  title="Unduh File Excel Asli (.xls) untuk Microsoft Excel"
+                >
+                  <FileSpreadsheet size={15} className="mr-2" /> Export Excel (.xls)
+                </button>
+                <button 
+                  onClick={handlePrintReport}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition"
+                  title="Cetak Laporan Format Tabel Resmi"
+                >
+                  <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
+                </button>
+              </div>
             </div>
 
-            {/* 4 Kartu Metrik Laporan Sesuai Desain Gambar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* 1. PEMASUKAN */}
+            {/* 4 Kartu Metrik Laporan (Hanya Tampil di Layar Web) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-500">
@@ -980,7 +1087,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 2. PENGELUARAN */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500">
@@ -1000,7 +1106,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 3. UANG MUKA */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
@@ -1020,7 +1125,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4. KEUNTUNGAN BERSIH */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${reportKeuntunganBersih >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
@@ -1041,14 +1145,13 @@ export default function App() {
               </div>
             </div>
 
-            {/* Grafik Tren 6 Bulan Terakhir */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            {/* Grafik Tren 6 Bulan (Hanya Tampil di Layar Web) */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="mb-6">
                 <h3 className="font-bold text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Pemasukan, pengeluaran, dan keuntungan bersih per bulan</p>
               </div>
 
-              {/* Batang Diagram */}
               <div className="h-64 flex items-end justify-between gap-2 sm:gap-6 pt-6 pb-2 border-b border-slate-100">
                 {trendData.map((item, idx) => {
                   const incomeHeight = Math.max(6, Math.min(100, Math.round((item.income / maxTrendVal) * 100)));
@@ -1058,19 +1161,16 @@ export default function App() {
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
                       <div className="w-full flex items-end justify-center gap-1 sm:gap-2 h-full">
-                        {/* Batang Pemasukan (Biru Muda) */}
                         <div 
                           className="w-3 sm:w-5 bg-sky-400 rounded-t-md transition-all hover:bg-sky-500 relative" 
                           style={{ height: `${incomeHeight}%` }}
                           title={`Pemasukan: Rp ${item.income.toLocaleString('id-ID')}`}
                         ></div>
-                        {/* Batang Pengeluaran (Merah Muda/Rose) */}
                         <div 
                           className="w-3 sm:w-5 bg-rose-400 rounded-t-md transition-all hover:bg-rose-500 relative" 
                           style={{ height: `${expenseHeight}%` }}
                           title={`Pengeluaran: Rp ${item.expense.toLocaleString('id-ID')}`}
                         ></div>
-                        {/* Batang Keuntungan (Navy Gelap) */}
                         <div 
                           className="w-3 sm:w-5 bg-[#2c3e50] rounded-t-md transition-all hover:bg-slate-900 relative" 
                           style={{ height: `${profitHeight}%` }}
@@ -1085,7 +1185,6 @@ export default function App() {
                 })}
               </div>
 
-              {/* Legend Grafik */}
               <div className="flex flex-wrap items-center justify-center gap-6 mt-4 pt-2 text-xs font-semibold text-slate-600">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-xs bg-[#2c3e50]"></span>
@@ -1102,88 +1201,190 @@ export default function App() {
               </div>
             </div>
 
-            {/* Rincian Tabel: Pemasukan Sewa vs Pengeluaran dalam Rentang Tanggal */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Kolom Kiri: Pemasukan Sewa */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
-                  <span>Pemasukan Sewa (Lunas)</span>
-                  <span className="text-xs text-slate-400 font-normal">{filteredReportBills.length} data</span>
-                </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                      <tr>
-                        <th className="p-2.5">Tanggal</th>
-                        <th className="p-2.5">Penghuni</th>
-                        <th className="p-2.5">Kamar</th>
-                        <th className="p-2.5 text-right">Nominal</th>
+            {/* TABEL BUKU KAS GABUNGAN DI LAYAR (MODEL EXCEL LENGKAP) */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                <div>
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <FileSpreadsheet className="mr-2 text-emerald-600" size={18} /> Buku Kas Mutasi Keuangan (Pratinjau Spreadsheet)
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Seluruh arus masuk dan keluar tercatat kronologis seperti tabel Excel</p>
+                </div>
+                <button
+                  onClick={handleExportExcel}
+                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center transition"
+                >
+                  <Download size={14} className="mr-1.5" /> Unduh .XLS
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3 text-center w-12">No</th>
+                      <th className="p-3">Tanggal</th>
+                      <th className="p-3 text-center">Tipe</th>
+                      <th className="p-3">Kamar / Kategori</th>
+                      <th className="p-3">Keterangan / Penghuni</th>
+                      <th className="p-3 text-right">Pemasukan</th>
+                      <th className="p-3 text-right">Pengeluaran</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {combinedReportTransactions.map((t, idx) => (
+                      <tr key={t.id} className="hover:bg-slate-50/80 transition">
+                        <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="p-3 text-slate-600">{new Date(t.date).toLocaleDateString('id-ID')}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            t.type === 'Pemasukan' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {t.type}
+                          </span>
+                        </td>
+                        <td className="p-3 font-semibold text-slate-700">{t.category}</td>
+                        <td className="p-3 text-slate-600">{t.description}</td>
+                        <td className="p-3 text-right font-black text-sky-600 font-mono">
+                          {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
+                        </td>
+                        <td className="p-3 text-right font-black text-rose-600 font-mono">
+                          {t.expense > 0 ? `Rp ${t.expense.toLocaleString('id-ID')}` : '-'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredReportBills.map(b => {
-                        const user = users.find(u => u.id === b.user_id);
-                        const room = rooms.find(r => r.id === user?.room_id);
-                        return (
-                          <tr key={b.id} className="hover:bg-slate-50/60">
-                            <td className="p-2.5 text-slate-500">{new Date(b.created_at || b.due_date).toLocaleDateString('id-ID')}</td>
-                            <td className="p-2.5 font-bold text-slate-800">{user?.name || `User #${b.user_id}`}</td>
-                            <td className="p-2.5 text-slate-600">{room ? `Kmr ${room.number}` : '-'}</td>
-                            <td className="p-2.5 font-black text-sky-600 text-right">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
-                          </tr>
-                        );
-                      })}
-                      {filteredReportBills.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pemasukan pada rentang tanggal ini.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                    ))}
+
+                    {combinedReportTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-400">
+                          Tidak ada transaksi yang tercatat pada rentang tanggal ini.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {combinedReportTransactions.length > 0 && (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-800">
+                      <tr>
+                        <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-[11px]">Total Kas:</td>
+                        <td className="p-3 text-right font-black text-sky-600 font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                        <td className="p-3 text-right font-black text-rose-600 font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                      </tr>
+                      <tr className="bg-slate-100/70 border-t border-slate-200">
+                        <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-[11px]">Keuntungan Bersih:</td>
+                        <td colSpan={2} className={`p-3 text-right font-black text-sm font-mono ${reportKeuntunganBersih >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* FORMAT CETAK DOKUMEN RESMI (HANYA MUNCUL SAAT KLIK CETAK / PDF) */}
+            {/* MENGGUNAKAN FORMAT TABEL EXCEL KOTAK DENGAN GARIS TEGAS TANPA WIDGET WEB */}
+            {/* ========================================================================= */}
+            <div className="hidden print:block print-document-container p-2 text-black">
+              {/* Kop Surat Dokumen */}
+              <div className="text-center border-b-2 border-black pb-4 mb-5">
+                <h1 className="text-2xl font-black uppercase tracking-wider">SMARTKOS MANAGEMENT SYSTEM</h1>
+                <h2 className="text-base font-bold uppercase text-slate-700 mt-1">Laporan Rekapitulasi Arus Kas & Keuangan</h2>
+                <div className="text-xs text-slate-600 mt-1 flex justify-center gap-4">
+                  <span><strong>Periode:</strong> {new Date(appliedStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} s/d {new Date(appliedEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                  <span>·</span>
+                  <span><strong>Dicetak Pada:</strong> {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
                 </div>
               </div>
 
-              {/* Kolom Kanan: Pengeluaran */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
-                  <span>Rincian Pengeluaran</span>
-                  <span className="text-xs text-slate-400 font-normal">{filteredReportExpenses.length} data</span>
-                </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                      <tr>
-                        <th className="p-2.5">Tanggal</th>
-                        <th className="p-2.5">Keperluan</th>
-                        <th className="p-2.5">Kategori</th>
-                        <th className="p-2.5 text-right">Nominal</th>
+              {/* Tabel Ringkasan Eksekutif */}
+              <table className="w-full border-collapse border border-black mb-6 text-xs">
+                <thead>
+                  <tr className="bg-slate-200 text-black">
+                    <th className="border border-black p-2.5 text-center font-bold">TOTAL PEMASUKAN</th>
+                    <th className="border border-black p-2.5 text-center font-bold">TOTAL PENGELUARAN</th>
+                    <th className="border border-black p-2.5 text-center font-bold">KEUNTUNGAN BERSIH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="text-center text-sm font-black">
+                    <td className="border border-black p-3 text-sky-900">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                    <td className="border border-black p-3 text-rose-900">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                    <td className="border border-black p-3 text-emerald-900">Rp {reportKeuntunganBersih.toLocaleString('id-ID')}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Tabel Lembar Kerja Excel Resmi */}
+              <div className="mb-8">
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-2">Rincian Mutasi Transaksi (Buku Kas Besar):</h3>
+                <table className="w-full border-collapse border border-black text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-200 text-black">
+                      <th className="border border-black p-2 text-center w-10">No</th>
+                      <th className="border border-black p-2 text-center w-24">Tanggal</th>
+                      <th className="border border-black p-2 text-center w-24">Tipe</th>
+                      <th className="border border-black p-2 text-left w-36">Kamar / Kategori</th>
+                      <th className="border border-black p-2 text-left">Keterangan / Penghuni</th>
+                      <th className="border border-black p-2 text-right w-28">Pemasukan</th>
+                      <th className="border border-black p-2 text-right w-28">Pengeluaran</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {combinedReportTransactions.map((t, idx) => (
+                      <tr key={t.id} className="border-b border-black">
+                        <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
+                        <td className="border border-black p-1.5 text-center">{t.date}</td>
+                        <td className="border border-black p-1.5 text-center font-bold">{t.type}</td>
+                        <td className="border border-black p-1.5">{t.category}</td>
+                        <td className="border border-black p-1.5">{t.description}</td>
+                        <td className="border border-black p-1.5 text-right font-mono font-semibold">
+                          {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
+                        </td>
+                        <td className="border border-black p-1.5 text-right font-mono font-semibold">
+                          {t.expense > 0 ? `Rp ${t.expense.toLocaleString('id-ID')}` : '-'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredReportExpenses.map(e => (
-                        <tr key={e.id} className="hover:bg-slate-50/60">
-                          <td className="p-2.5 text-slate-500">{new Date(e.expense_date || e.created_at).toLocaleDateString('id-ID')}</td>
-                          <td className="p-2.5 font-bold text-slate-800">{e.title}</td>
-                          <td className="p-2.5 text-slate-600"><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 font-medium">{e.category}</span></td>
-                          <td className="p-2.5 font-black text-rose-600 text-right">Rp {Number(e.nominal).toLocaleString('id-ID')}</td>
-                        </tr>
-                      ))}
-                      {filteredReportExpenses.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pengeluaran pada rentang tanggal ini.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                    ))}
+
+                    {combinedReportTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="border border-black p-4 text-center">
+                          Tidak ada catatan transaksi pada periode yang dipilih.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 font-bold">
+                      <td colSpan={5} className="border border-black p-2 text-right uppercase">TOTAL KESELURUHAN:</td>
+                      <td className="border border-black p-2 text-right font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                      <td className="border border-black p-2 text-right font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                    </tr>
+                    <tr className="bg-slate-200 font-black text-xs">
+                      <td colSpan={5} className="border border-black p-2.5 text-right uppercase">SALDO AKHIR (LABA BERSIH):</td>
+                      <td colSpan={2} className="border border-black p-2.5 text-right font-mono text-sm">
+                        Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Tanda Tangan Pengelola Dokumen */}
+              <div className="flex justify-end pt-4">
+                <div className="text-center w-56 text-xs">
+                  <p className="text-slate-700">Pengelola SmartKos,</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold border-b border-black pb-1 uppercase">{currentUser?.name || 'Administrator'}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Penanggung Jawab Keuangan</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW 2: BUKU PENGELUARAN */}
-        {/* ========================================================================= */}
         {view === 'admin_expenses' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
@@ -1630,7 +1831,6 @@ export default function App() {
     </div>
   );
 
-  /* STREAMING_CHUNK:Merender tampilan resident dashboard dan sidik jari... */
   const renderResident = () => {
     if (!currentUser.room_id) {
       return (
@@ -1914,21 +2114,27 @@ export default function App() {
     );
   };
 
-  /* STREAMING_CHUNK:Merender wadah utama aplikasi dan konfigurasi gaya cetak CSS... */
   return (
     <div className="font-sans text-slate-800 bg-slate-100 min-h-screen">
       <style>{`
         @media print {
           @page {
-            size: A4;
-            margin: 1.5cm;
+            size: A4 portrait;
+            margin: 1cm;
           }
           body {
             background-color: white !important;
             color: black !important;
           }
-          .printable-report {
+          .print-document-container {
             width: 100% !important;
+            display: block !important;
+          }
+          table {
+            border-collapse: collapse !important;
+          }
+          th, td {
+            border: 1px solid #1e293b !important;
           }
         }
       `}</style>
