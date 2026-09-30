@@ -5,7 +5,8 @@ import {
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
-  Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles
+  Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles,
+  MessageSquare, Send
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -254,10 +255,12 @@ function AppContent() {
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
   const [changeMethodModal, setChangeMethodModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
-  const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
+  const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices' | 'fonnte'>('tokopay');
   const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
   const [residentFloorFilter, setResidentFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
+  const [testWaPhone, setTestWaPhone] = useState('');
 
   // State Pengelolaan Akun & Pencarian User
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -551,10 +554,60 @@ function AppContent() {
 
   const handleSaveSettings = async (e: any) => {
     e.preventDefault();
+    setIsLoading(true);
+    const fd = new FormData(e.target);
     try {
-      await axios.post('/api/settings', { merchant_id: e.target.merchant_id.value, secret_key: e.target.secret_key.value });
-      showToast('Setting API TokoPay tersimpan', 'success'); fetchDashboardData();
-    } catch (error) { showToast('Gagal simpan setting', 'error'); }
+      await axios.post('/api/settings', {
+        merchant_id: fd.get('merchant_id') !== null ? fd.get('merchant_id') : settings.tokopay_merchant_id,
+        secret_key: fd.get('secret_key') !== null ? fd.get('secret_key') : settings.tokopay_secret_key,
+        fonnte_token: fd.get('fonnte_token') !== null ? fd.get('fonnte_token') : ((settings as any).fonnte_token || '')
+      });
+      showToast('Konfigurasi pengaturan berhasil disimpan!', 'success');
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal simpan setting', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestFonnte = async () => {
+    if (!testWaPhone.trim()) {
+      showToast('Masukkan nomor WhatsApp tujuan tes terlebih dahulu', 'error');
+      return;
+    }
+    setIsLoading(true);
+    showToast('Mengirim pesan tes via Fonnte...', 'info');
+    try {
+      const res = await axios.post('/api/whatsapp?action=test', { phone: testWaPhone });
+      if (res.data.success) {
+        showToast('Pesan WhatsApp uji coba berhasil terkirim!', 'success');
+      } else {
+        showToast(res.data.message || 'Gagal mengirim pesan', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Gagal terhubung ke WhatsApp Fonnte', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendWaReminder = async (billId: number) => {
+    setIsLoading(true);
+    showToast('Mengirim pengingat WhatsApp...', 'info');
+    try {
+      const res = await axios.post('/api/whatsapp?action=send-reminder', { bill_id: billId });
+      if (res.data.success) {
+        showToast('Pesan pengingat jatuh tempo berhasil dikirim ke WhatsApp penghuni!', 'success');
+        fetchDashboardData();
+      } else {
+        showToast(res.data.message || 'Gagal mengirim pengingat', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Gagal mengirim WhatsApp', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleTestTokoPay = async () => {
@@ -1509,6 +1562,14 @@ function AppContent() {
                                   <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
                                 </button>
                                 <button 
+                                  onClick={() => handleSendWaReminder(b.id)}
+                                  disabled={isLoading}
+                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
+                                  title="Kirim pesan pengingat jatuh tempo via WhatsApp Fonnte"
+                                >
+                                  <MessageSquare size={13} className="mr-1.5 text-emerald-600" /> Kirim WA
+                                </button>
+                                <button 
                                   onClick={() => setBillModal(b)} 
                                   className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
                                 >
@@ -2394,22 +2455,29 @@ function AppContent() {
                     <Settings className="mr-2.5 text-blue-600" size={24}/> Pengaturan Sistem & Integrasi
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Kelola gerbang pembayaran TokoPay (QRIS) dan koneksi perangkat IoT pintu kamar
+                    Kelola gerbang pembayaran QRIS, koneksi perangkat IoT, dan gateway WhatsApp Fonnte
                   </p>
                 </div>
 
-                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                {/* Sub Tab Switcher 3 Tombol */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
                   <button 
                     onClick={() => setSettingsTab('tokopay')} 
-                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <ShieldCheck size={14} className="mr-1.5" /> API TokoPay (QRIS)
+                    <ShieldCheck size={14} className="mr-1.5" /> TokoPay (QRIS)
                   </button>
                   <button 
                     onClick={() => setSettingsTab('devices')} 
-                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <Cpu size={14} className="mr-1.5" /> Perangkat Fingerprint
+                    <Cpu size={14} className="mr-1.5" /> Perangkat Pintu
+                  </button>
+                  <button 
+                    onClick={() => setSettingsTab('fonnte')} 
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'fonnte' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <MessageSquare size={14} className="mr-1.5 text-emerald-600" /> WhatsApp (Fonnte)
                   </button>
                 </div>
               </div>
@@ -2459,7 +2527,7 @@ function AppContent() {
                       type="submit" 
                       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
                     >
-                      <Save size={16} className="mr-2"/> Simpan Konfigurasi
+                      <Save size={16} className="mr-2"/> Simpan Konfigurasi TokoPay
                     </button>
                     <button 
                       type="button" 
@@ -2470,6 +2538,90 @@ function AppContent() {
                     </button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {/* TAB 3: PENGATURAN WHATSAPP GATEWAY (FONNTE) */}
+            {settingsTab === 'fonnte' && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <div className="border-b pb-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                      <MessageSquare size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-base">
+                        WhatsApp Gateway API (Fonnte)
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Otomasi pengiriman struk lunas seketika & pengingat jatuh tempo tanggal 25
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl text-xs text-emerald-800 space-y-2">
+                  <p className="font-bold flex items-center">
+                    <Sparkles size={14} className="mr-1.5 text-emerald-600" /> Cara Kerja WhatsApp Otomatis:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-600 pl-1">
+                    <li><strong>Struk Lunas Otomatis:</strong> Setiap ada pembayaran QRIS yang diverifikasi TokoPay, WhatsApp anak kos langsung menerima rincian invoice resmi.</li>
+                    <li><strong>Pengingat Jatuh Tempo (Tanggal 25):</strong> Admin dapat menekan tombol <em>"Kirim WA"</em> di menu Pembayaran kapan saja untuk mengingatkan penghuni.</li>
+                  </ul>
+                </div>
+
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Fonnte API Token (Device Token)
+                    </label>
+                    <input 
+                      type="text" 
+                      name="fonnte_token" 
+                      defaultValue={(settings as any).fonnte_token || ''} 
+                      placeholder="Masukkan Token Fonnte (Contoh: x8d9@pQz...)"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono" 
+                      required 
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Dapatkan token gratis atau berbayar Anda di menu <em>Device</em> pada dashboard <a href="https://fonnte.com" target="_blank" rel="noreferrer" className="text-emerald-600 underline font-semibold">fonnte.com</a>.
+                    </span>
+                  </div>
+
+                  <div className="pt-2">
+                    <button 
+                      type="submit" 
+                      disabled={isLoading}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                    >
+                      <Save size={16} className="mr-2"/> Simpan Token Fonnte
+                    </button>
+                  </div>
+                </form>
+
+                {/* Kotak Pengujian Kirim Pesan */}
+                <div className="pt-4 border-t border-slate-100">
+                  <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-2">
+                    Uji Coba Pengiriman Pesan WhatsApp
+                  </h5>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-md">
+                    <input 
+                      type="tel" 
+                      value={testWaPhone}
+                      onChange={(e) => setTestWaPhone(e.target.value)}
+                      placeholder="Nomor WhatsApp tes (08123...)"
+                      className="p-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-emerald-500 flex-1 font-medium"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={handleTestFonnte}
+                      disabled={isLoading}
+                      className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-xs"
+                    >
+                      <Send size={13} className="mr-1.5" /> Kirim Pesan Tes
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

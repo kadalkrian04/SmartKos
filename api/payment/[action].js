@@ -70,10 +70,12 @@ export default async function handler(req, res) {
           UPDATE bills 
           SET status = 'lunas', payment_method = ${detectedMethod} 
           WHERE ref_id = ${ref_id} 
-          RETURNING user_id
+          RETURNING user_id, nominal
         `;
         if (updateBill.rows.length > 0) {
           const userId = updateBill.rows[0].user_id;
+          const billNominal = updateBill.rows[0].nominal;
+
           await sql`
             UPDATE users 
             SET is_fingerprint_active = true, 
@@ -81,6 +83,66 @@ export default async function handler(req, res) {
             WHERE id = ${userId}
           `;
           await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, ${'Pembayaran Lunas via ' + detectedMethod + ': ' + ref_id})`;
+
+          try {
+            const tokenQuery = await sql`SELECT key_value FROM settings WHERE key_name = 'fonnte_token'`;
+            const fonnteToken = tokenQuery.rows[0]?.key_value;
+
+            if (fonnteToken && fonnteToken.trim()) {
+              const userQuery = await sql`
+                SELECT u.name, u.phone, r.number AS room_number
+                FROM users u
+                LEFT JOIN rooms r ON (u.room_id = r.id OR u.room_id::text = r.number::text)
+                WHERE u.id = ${userId}
+              `;
+
+              const tenant = userQuery.rows[0];
+              if (tenant && tenant.phone && tenant.phone.trim()) {
+                const cleanPhone = tenant.phone.replace(/\D/g, '');
+                const nowStr = new Date().toLocaleDateString('id-ID', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric'
+                });
+
+                const receiptMsg = 
+`🎉 *PEMBAYARAN SEWA BERHASIL - SMARTKOS*
+
+Halo Kak *${tenant.name}*,
+Terima kasih! Pembayaran sewa kamar Anda telah kami terima dan diverifikasi secara otomatis oleh sistem.
+
+📋 *Rincian Transaksi:*
+• Invoice: *${ref_id}*
+• Kamar: *Kamar ${tenant.room_number || '-'}*
+• Nominal: *Rp ${Number(billNominal).toLocaleString('id-ID')}*
+• Metode: *${detectedMethod}*
+• Tanggal: *${nowStr}*
+• Status: *LUNAS (BERHASIL)*
+
+✅ Akses pintu kamar & sensor sidik jari Anda telah *AKTIF* hingga tanggal 25 bulan berikutnya.
+
+Salam hangat,
+*Manajemen SmartKos*`;
+
+                await fetch('https://api.fonnte.com/send', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': fonnteToken.trim(),
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    target: cleanPhone,
+                    message: receiptMsg,
+                    countryCode: '62'
+                  })
+                });
+
+                await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, ${'Struk WA Otomatis Terkirim ke ' + tenant.phone})`;
+              }
+            }
+          } catch (waErr) {
+            console.error('Auto WA Fonnte Error:', waErr);
+          }
         }
       }
       return res.status(200).json({ success: true, message: 'Laporan Diterima' });
