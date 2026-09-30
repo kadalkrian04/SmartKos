@@ -16,35 +16,29 @@ export default async function handler(req, res) {
       }
       const payloadString = JSON.stringify(payload || {});
 
-      // Catat webhook ke logs untuk audit sistem
-      try {
-        await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'WEBHOOK MASUK: ' + payloadString.substring(0, 220)})`;
-      } catch(e) {}
+      // Deteksi channel / metode pembayaran yang dipakai pembeli (misal: GoPay, ShopeePay, DANA, OVO, Bank)
+      let rawMethod = 
+        payload.issuer || 
+        payload.brand || 
+        payload.channel || 
+        payload.source || 
+        payload.payment_method || 
+        payload.metode || 
+        payload.pay_name || 
+        payload.bank || 
+        (payload.data && (payload.data.issuer || payload.data.brand || payload.data.channel || payload.data.payment_method || payload.data.source)) || 
+        '';
 
-      // Otomatis pastikan kolom payment_method tersedia di tabel bills
-      try {
-        await sql`ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'QRIS'`;
-      } catch (colErr) {}
-
-      // Cari Ref ID baru (ADIBKOS-...) atau fallback lama (INV-...)
-      let ref_id = payload.ref_id || payload.reff_id || payload.order_id || null;
-      if (!ref_id) {
-        const match = payloadString.match(/(?:ADIBKOS|INV)-\d+-\d+/i);
-        ref_id = match ? match[0] : null;
-      }
-
-      // Deteksi channel / metode pembayaran yang dipakai pembeli (misal: GoPay, ShopeePay, DANA, OVO)
-      let rawMethod = payload.channel || payload.metode || payload.payment_method || payload.brand || payload.pay_name || payload.issuer || payload.source || (payload.data && (payload.data.channel || payload.data.metode || payload.data.payment_method)) || '';
       const methodUpper = (rawMethod + ' ' + payloadString).toUpperCase();
 
       let detectedMethod = 'QRIS';
       if (methodUpper.includes('DANA')) {
         detectedMethod = 'QRIS DANA';
-      } else if (methodUpper.includes('GOPAY')) {
+      } else if (methodUpper.includes('GOPAY') || methodUpper.includes('GO-PAY')) {
         detectedMethod = 'QRIS GoPay';
       } else if (methodUpper.includes('BCA')) {
         detectedMethod = 'QRIS BCA';
-      } else if (methodUpper.includes('SHOPEE') || methodUpper.includes('SPAY')) {
+      } else if (methodUpper.includes('SHOPEE') || methodUpper.includes('SPAY') || methodUpper.includes('AIRPAY')) {
         detectedMethod = 'QRIS ShopeePay';
       } else if (methodUpper.includes('OVO')) {
         detectedMethod = 'QRIS OVO';
@@ -54,13 +48,22 @@ export default async function handler(req, res) {
         detectedMethod = 'QRIS BRI';
       } else if (methodUpper.includes('BNI')) {
         detectedMethod = 'QRIS BNI';
-      } else if (rawMethod && rawMethod.toString().trim() !== '') {
+      } else if (methodUpper.includes('CIMB') || methodUpper.includes('OCTO')) {
+        detectedMethod = 'QRIS CIMB Niaga';
+      } else if (methodUpper.includes('SEABANK') || methodUpper.includes('SEA BANK')) {
+        detectedMethod = 'QRIS SeaBank';
+      } else if (methodUpper.includes('LINKAJA') || methodUpper.includes('LINK AJA')) {
+        detectedMethod = 'QRIS LinkAja';
+      } else if (rawMethod && rawMethod.toString().trim() !== '' && rawMethod.toString().toUpperCase() !== 'QRIS') {
         const clean = rawMethod.toString().trim();
         detectedMethod = clean.toUpperCase().startsWith('QRIS') ? clean : `QRIS ${clean}`;
       }
 
       const pLower = payloadString.toLowerCase();
       const isSuccess = pLower.includes('success') || pLower.includes('sukses') || pLower.includes('paid') || pLower.includes('settlement') || payload.status === '1' || payload.status === 1 || payload.status === 'dibayar';
+
+      // Ekstrak ref_id dari berbagai kemungkinan struktur payload webhook TokoPay
+      const ref_id = payload.ref_id || payload.reff_id || payload.trx_id || payload.reference || (payload.data && (payload.data.ref_id || payload.data.reff_id)) || req.query.ref_id || '';
 
       if (ref_id && isSuccess) {
         const updateBill = await sql`

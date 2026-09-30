@@ -2132,17 +2132,19 @@ export default function App() {
           </div>
         )}
 
-        {}
-        {/* Modal Cepat Ubah Metode Pembayaran */}
+        {/* Modal Cepat Ubah Metode Pembayaran (Hanya untuk Koreksi / Offline) */}
         {changeMethodModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
                 <CreditCard size={24} />
               </div>
-              <h3 className="font-black text-slate-800 text-base mb-1">Pilih Detail Metode Pembayaran</h3>
-              <p className="text-xs text-slate-500 mb-4">
+              <h3 className="font-black text-slate-800 text-base mb-1">Koreksi Metode Pembayaran</h3>
+              <p className="text-xs text-slate-500 mb-2">
                 Invoice: <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{changeMethodModal.ref_id}</span>
+              </p>
+              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-4 leading-relaxed font-medium">
+                💡 <strong>Catatan:</strong> Pembayaran QRIS online akan terdeteksi <strong>otomatis</strong> oleh sistem. Menu ini hanya dipakai jika Anda ingin mengubahnya secara manual.
               </p>
 
               <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-bold">
@@ -2173,7 +2175,7 @@ export default function App() {
                 onClick={() => setChangeMethodModal(null)}
                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition"
               >
-                Batal
+                Tutup
               </button>
             </div>
           </div>
