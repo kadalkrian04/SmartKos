@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { 
   Users, DoorOpen, CreditCard, Settings, LogOut, 
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
@@ -8,6 +8,46 @@ import {
   Smartphone, Banknote, User, Mail, MapPin
 } from 'lucide-react';
 import axios from 'axios';
+
+class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error: error?.message || 'Terjadi kesalahan sistem' };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error("SmartKos Crash Prevented:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-200">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-2">Terjadi Gangguan Tampilan</h2>
+            <p className="text-xs text-slate-500 mb-4 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-left overflow-auto max-h-24">
+              {this.state.error}
+            </p>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('smartkos_view');
+                window.location.reload();
+              }}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition"
+            >
+              Segarkan & Pulihkan Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
   const method = (methodRaw || 'QRIS').trim();
@@ -128,7 +168,7 @@ const formatDueDate25 = (dateVal: any) => {
   }
 };
 
-export default function App() {
+function AppContent() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('smartkos_user');
@@ -202,35 +242,40 @@ export default function App() {
     if (!currentUser) return;
     if (!isBackground) setIsLoading(true);
     try {
-      if(currentUser.role === 'admin') {
-         const [resUsers, resRooms, resBills, resLogs, resSettings, resExpenses] = await Promise.all([
-           axios.get('/api/users'), 
-           axios.get('/api/rooms'), 
-           axios.get('/api/bills'), 
-           axios.get('/api/logs'), 
-           axios.get('/api/settings'),
-           axios.get('/api/expenses').catch(() => ({ data: [] }))
-         ]);
-         setUsers(resUsers.data || []); 
-         setRooms(resRooms.data || []); 
-         setBills(resBills.data || []); 
-         setLogs(resLogs.data || []); 
-         setSettings(resSettings.data || {});
-         setExpenses(resExpenses.data || []);
-         if (isManual) showToast('Data dashboard berhasil diperbarui', 'success');
+      if (currentUser.role === 'admin') {
+        const [resUsers, resRooms, resBills, resLogs, resSettings, resExpenses] = await Promise.all([
+          axios.get('/api/users').catch(() => ({ data: [] })), 
+          axios.get('/api/rooms').catch(() => ({ data: [] })), 
+          axios.get('/api/bills').catch(() => ({ data: [] })), 
+          axios.get('/api/logs').catch(() => ({ data: [] })), 
+          axios.get('/api/settings').catch(() => ({ data: {} })),
+          axios.get('/api/expenses').catch(() => ({ data: [] }))
+        ]);
+        setUsers(Array.isArray(resUsers.data) ? resUsers.data : []); 
+        setRooms(Array.isArray(resRooms.data) ? resRooms.data : []); 
+        setBills(Array.isArray(resBills.data) ? resBills.data : []); 
+        setLogs(Array.isArray(resLogs.data) ? resLogs.data : []); 
+        setSettings(resSettings.data || {});
+        setExpenses(Array.isArray(resExpenses.data) ? resExpenses.data : []);
+        if (isManual) showToast('Data dashboard berhasil diperbarui', 'success');
       } else {
-         const [resRooms, resBills] = await Promise.all([axios.get('/api/rooms'), axios.get('/api/bills')]);
-         setRooms(resRooms.data || []); 
-         setBills(resBills.data || []); 
+        const [resRooms, resBills] = await Promise.all([
+          axios.get('/api/rooms').catch(() => ({ data: [] })), 
+          axios.get('/api/bills').catch(() => ({ data: [] }))
+        ]);
+        const rList = Array.isArray(resRooms.data) ? resRooms.data : [];
+        const bList = Array.isArray(resBills.data) ? resBills.data : [];
+        setRooms(rList); 
+        setBills(bList); 
          
-         const myBill = resBills.data?.find((b: any) => b.user_id === currentUser.id);
-         if (!myBill && currentUser.active_until === null && currentUser.room_id) {
-             const updatedUser = {...currentUser, room_id: null};
-             setCurrentUser(updatedUser);
-             showToast('Waktu pembayaran habis. Kamar dibatalkan otomatis.', 'error');
-         } else if (isManual) {
-             showToast('Data berhasil diperbarui', 'success');
-         }
+        const myBill = bList.find((b: any) => b.user_id === currentUser.id);
+        if (!myBill && currentUser.active_until === null && currentUser.room_id) {
+          const updatedUser = {...currentUser, room_id: null};
+          setCurrentUser(updatedUser);
+          showToast('Waktu pembayaran habis. Kamar dibatalkan otomatis.', 'error');
+        } else if (isManual) {
+          showToast('Data berhasil diperbarui', 'success');
+        }
       }
     } catch (error) {
       if (!isBackground) showToast('Gagal memuat data dari server.', 'error');
@@ -258,14 +303,15 @@ export default function App() {
       intervalId = setInterval(async () => {
         try {
           const response = await axios.get('/api/bills');
-          const updatedBill = response.data?.find((b: any) => b.id === paymentModal.id);
+          const bList = Array.isArray(response.data) ? response.data : [];
+          const updatedBill = bList.find((b: any) => b.id === paymentModal.id);
           
           if (updatedBill && updatedBill.status === 'lunas') {
             setPaymentModal(null);
             const updatedUser = {
-               ...currentUser, 
-               is_fingerprint_active: true, 
-               active_until: new Date(Date.now() + (37 * 24 * 60 * 60 * 1000)).toISOString()
+              ...currentUser, 
+              is_fingerprint_active: true, 
+              active_until: new Date(Date.now() + (37 * 24 * 60 * 60 * 1000)).toISOString()
             };
             setCurrentUser(updatedUser);
             const methodUsed = updatedBill.payment_method || 'QRIS';
@@ -327,7 +373,7 @@ export default function App() {
     const fd = new FormData(e.target);
     try {
       const response = await axios.post('/api/auth/update-profile', {
-        userId: currentUser.id,
+        userId: currentUser?.id,
         name: fd.get('name'),
         address: fd.get('address'),
         email: fd.get('email'),
@@ -463,7 +509,7 @@ export default function App() {
 
   const handleChooseRoom = async (roomId: number) => {
     try {
-      const response = await axios.post('/api/users?action=choose-room', { userId: currentUser.id, roomId });
+      const response = await axios.post('/api/users?action=choose-room', { userId: currentUser?.id, roomId });
       if (response.data.success) {
         showToast('Kamar dipesan! Segera lunasi tagihan.', 'success');
         setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
@@ -534,7 +580,7 @@ export default function App() {
   const handleStartEnrollment = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/users?action=start-enroll', { userId: currentUser.id });
+      const response = await axios.post('/api/users?action=start-enroll', { userId: currentUser?.id });
       if (response.data.success) {
         setCurrentUser({ ...currentUser, fingerprint_id: null });
         setIsScanningFP(true);
@@ -552,7 +598,7 @@ export default function App() {
 
   const handleCancelEnrollment = async () => {
     try {
-      await axios.post('/api/users?action=cancel-enroll', { userId: currentUser.id });
+      await axios.post('/api/users?action=cancel-enroll', { userId: currentUser?.id });
     } catch (e) {}
     setIsScanningFP(false);
     showToast('Perekaman sidik jari dibatalkan.', 'info');
@@ -562,7 +608,7 @@ export default function App() {
     let timer: any;
     let pollInterval: any;
 
-    if (isScanningFP) {
+    if (isScanningFP && currentUser) {
       timer = setInterval(() => {
         setEnrollCountdown((prev) => {
           if (prev <= 1) {
@@ -578,7 +624,8 @@ export default function App() {
       pollInterval = setInterval(async () => {
         try {
           const res = await axios.get('/api/users');
-          const myData = res.data?.find((u: any) => u.id === currentUser.id);
+          const uList = Array.isArray(res.data) ? res.data : [];
+          const myData = uList.find((u: any) => u.id === currentUser?.id);
           
           if (myData && myData.fingerprint_id) {
             setCurrentUser({ 
@@ -606,7 +653,7 @@ export default function App() {
     setIsLoading(true);
     try {
       await axios.put('/api/users', {
-        userId: currentUser.id,
+        userId: currentUser?.id,
         fingerprint_id: null
       });
       const updatedUser = { ...currentUser, fingerprint_id: null };
@@ -620,21 +667,27 @@ export default function App() {
     }
   };
 
-  const totalPemasukan = bills
+  const safeBills = Array.isArray(bills) ? bills : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const safeExpenses = Array.isArray(expenses) ? expenses : [];
+  const safeLogs = Array.isArray(logs) ? logs : [];
+
+  const totalPemasukan = safeBills
     .filter(b => b.status === 'lunas')
     .reduce((sum, b) => sum + (Number(b.nominal) || 0), 0);
 
-  const totalPengeluaran = expenses
+  const totalPengeluaran = safeExpenses
     .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
 
   const unpaidTenantsSet = new Set(
-    bills.filter(b => b.status === 'pending').map(b => b.user_id)
+    safeBills.filter(b => b.status === 'pending').map(b => b.user_id)
   );
   const totalBelumLunas = unpaidTenantsSet.size;
 
   const isRoomOccupied = (r: any) => {
     if (!r) return false;
-    const hasResident = users.some(u => 
+    const hasResident = safeUsers.some(u => 
       (!u.role || u.role === 'resident' || u.role !== 'admin') && (
         (u.room_id && (String(u.room_id).trim() === String(r.id).trim() || String(u.room_id).trim() === String(r.number).trim())) ||
         (r.resident_id && String(r.resident_id).trim() === String(u.id).trim())
@@ -643,10 +696,10 @@ export default function App() {
     return hasResident || r.status === 'occupied' || Boolean(r.resident_id);
   };
 
-  const totalKamarCount = rooms.length || 1;
-  const kamarTerisiCount = rooms.filter(r => isRoomOccupied(r)).length;
-  const kamarKosongCount = Math.max(0, rooms.length - kamarTerisiCount);
-  const occupancyPercent = rooms.length > 0 ? Math.round((kamarTerisiCount / rooms.length) * 100) : 0;
+  const totalKamarCount = safeRooms.length || 1;
+  const kamarTerisiCount = safeRooms.filter(r => isRoomOccupied(r)).length;
+  const kamarKosongCount = Math.max(0, safeRooms.length - kamarTerisiCount);
+  const occupancyPercent = safeRooms.length > 0 ? Math.round((kamarTerisiCount / safeRooms.length) * 100) : 0;
 
   const handleApplyReportFilter = () => {
     setAppliedStartDate(reportStartDate);
@@ -658,14 +711,14 @@ export default function App() {
     window.print();
   };
 
-  const filteredReportBills = bills.filter(b => {
+  const filteredReportBills = safeBills.filter(b => {
     if (b.status !== 'lunas') return false;
     const dateStr = (b.created_at || b.due_date || '').split('T')[0];
     if (!dateStr) return true;
     return dateStr >= appliedStartDate && dateStr <= appliedEndDate;
   });
 
-  const filteredReportExpenses = expenses.filter(e => {
+  const filteredReportExpenses = safeExpenses.filter(e => {
     const dateStr = (e.expense_date || e.created_at || '').split('T')[0];
     if (!dateStr) return true;
     return dateStr >= appliedStartDate && dateStr <= appliedEndDate;
@@ -677,8 +730,8 @@ export default function App() {
 
   const combinedReportTransactions = [
     ...filteredReportBills.map(b => {
-      const user = users.find(u => u.id === b.user_id);
-      const room = rooms.find(r => r.id === user?.room_id);
+      const user = safeUsers.find(u => u.id === b.user_id);
+      const room = safeRooms.find(r => r.id === user?.room_id);
       const method = b.payment_method || 'QRIS';
       return {
         id: `bill-${b.id}`,
@@ -805,14 +858,14 @@ export default function App() {
       const monthLabel = d.toLocaleDateString('id-ID', { month: 'short' });
       const fullLabel = `${monthLabel} ${year}`;
 
-      const mBills = bills.filter(b => {
+      const mBills = safeBills.filter(b => {
         if (b.status !== 'lunas') return false;
         const bDate = new Date(b.created_at || b.due_date);
         return bDate.getFullYear() === year && bDate.getMonth() === month;
       });
       const income = mBills.reduce((s, b) => s + (Number(b.nominal) || 0), 0);
 
-      const mExpenses = expenses.filter(e => {
+      const mExpenses = safeExpenses.filter(e => {
         const eDate = new Date(e.expense_date || e.created_at);
         return eDate.getFullYear() === year && eDate.getMonth() === month;
       });
@@ -830,7 +883,7 @@ export default function App() {
     ...trendData.flatMap(d => [d.income, d.expense, Math.abs(d.profit)])
   );
 
-  const sortedRooms = [...rooms].sort((a, b) => {
+  const sortedRooms = [...safeRooms].sort((a, b) => {
     const numA = parseInt((a.number || '').toString().replace(/\D/g, ''), 10);
     const numB = parseInt((b.number || '').toString().replace(/\D/g, ''), 10);
     if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
@@ -862,11 +915,11 @@ export default function App() {
       ? roomsLantai3 
       : sortedRooms;
 
-  const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
+  const totalTenantsWithRooms = safeUsers.filter(u => u.role === 'resident' && u.room_id).length;
   const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
-  const pendingBillsList = bills.filter(b => b.status === 'pending');
-  const historyBillsList = bills.filter(b => b.status === 'lunas');
+  const pendingBillsList = safeBills.filter(b => b.status === 'pending');
+  const historyBillsList = safeBills.filter(b => b.status === 'lunas');
 
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -877,7 +930,7 @@ export default function App() {
           <p className="text-slate-500 text-sm">Masuk / Daftar Area Penghuni</p>
         </div>
 
-        {view === 'login' ? (
+        {view === 'login' || (!currentUser && view !== 'register') ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
             <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
@@ -956,9 +1009,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* ========================================================================= */}
         {/* VIEW 1: DASHBOARD UTAMA */}
-        {/* ========================================================================= */}
         {view === 'admin_dashboard' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1092,13 +1143,13 @@ export default function App() {
               {/* GRID DENAH STATUS KAMAR */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
-                  const resident = users.find(u => 
+                  const resident = safeUsers.find(u => 
                     (room.resident_id && String(u.id).trim() === String(room.resident_id).trim()) ||
                     (u.room_id && (String(u.room_id).trim() === String(room.id).trim() || String(u.room_id).trim() === String(room.number).trim()))
                   );
 
                   const targetUserId = resident?.id || room.resident_id;
-                  const residentBills = bills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
+                  const residentBills = safeBills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
                   const hasPendingBill = residentBills.some(b => b.status === 'pending');
                   const hasLunasBill = residentBills.some(b => b.status === 'lunas');
                   const isOccupied = Boolean(resident || room.status === 'occupied' || room.resident_id);
@@ -1215,9 +1266,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW: PEMBAYARAN */}
-        {/* ========================================================================= */}
         {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
           <div className="space-y-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1252,7 +1301,6 @@ export default function App() {
                   onClick={handleGenerateBills} 
                   disabled={isLoading}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap"
-                  title="Generate tagihan bulanan format ADIBKOS"
                 >
                   <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
                 </button>
@@ -1284,8 +1332,8 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {pendingBillsList.map(b => {
-                        const user = users.find(u => u.id === b.user_id);
-                        const room = rooms.find(r => r.id === user?.room_id);
+                        const user = safeUsers.find(u => u.id === b.user_id);
+                        const room = safeRooms.find(r => r.id === user?.room_id);
                         return (
                           <tr key={b.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-4">
@@ -1313,7 +1361,6 @@ export default function App() {
                                 <button 
                                   onClick={() => handleSetLunasManual(b.id, b.user_id)} 
                                   className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center"
-                                  title="Tandai tagihan lunas manual (Tunai)"
                                 >
                                   <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
                                 </button>
@@ -1370,8 +1417,8 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {historyBillsList.map(b => {
-                        const user = users.find(u => u.id === b.user_id);
-                        const room = rooms.find(r => r.id === user?.room_id);
+                        const user = safeUsers.find(u => u.id === b.user_id);
+                        const room = safeRooms.find(r => r.id === user?.room_id);
                         return (
                           <tr key={b.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-4 text-slate-600">
@@ -1426,9 +1473,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW: BUKU PENGELUARAN */}
-        {/* ========================================================================= */}
         {view === 'admin_expenses' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
@@ -1456,7 +1501,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {expenses.map(exp => (
+                  {safeExpenses.map(exp => (
                     <tr key={exp.id} className="hover:bg-slate-50">
                       <td className="p-4 text-slate-500">{formatDateSafe(exp.expense_date || exp.created_at)}</td>
                       <td className="p-4 font-bold text-slate-800">{exp.title}</td>
@@ -1469,7 +1514,7 @@ export default function App() {
                       </td>
                     </tr>
                   ))}
-                  {expenses.length === 0 && (
+                  {safeExpenses.length === 0 && (
                     <tr>
                       <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran. Klik tombol di atas untuk menambah.</td>
                     </tr>
@@ -1480,83 +1525,79 @@ export default function App() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* VIEW: KELOLA USER (DI ATAS PENGATURAN) */}
-        {/* ========================================================================= */}
+        {/* VIEW: KELOLA USER */}
         {view === 'admin_users' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <h3 className="font-bold mb-6 text-lg">Kelola User (Penghuni Aktif)</h3>
             <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b">
-                  <tr>
-                    <th className="p-4">Nama</th>
-                    <th className="p-4">Username</th>
-                    <th className="p-4">Kamar</th>
-                    <th className="p-4">Status Sidik Jari</th>
-                    <th className="p-4">Status Tagihan</th>
-                    <th className="p-4">Aksi</th>
+              <thead className="bg-slate-100 border-b">
+                <tr>
+                  <th className="p-4">Nama</th>
+                  <th className="p-4">Username</th>
+                  <th className="p-4">Kamar</th>
+                  <th className="p-4">Status Sidik Jari</th>
+                  <th className="p-4">Status Tagihan</th>
+                  <th className="p-4">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {safeUsers.map(u => (
+                  <tr key={u.id} className="hover:bg-slate-50">
+                    <td className="p-4 font-bold">{u.name}</td>
+                    <td className="p-4 text-slate-500">{u.username}</td>
+                    <td className="p-4 font-bold">{safeRooms.find(r => r.id === u.room_id)?.number || '-'}</td>
+                    <td className="p-4">
+                      {u.fingerprint_id ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
+                          <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                          Belum Didaftarkan
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {!u.room_id ? (
+                         <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
+                      ) : !u.is_fingerprint_active ? (
+                         <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
+                      ) : (
+                         <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <button
+                        onClick={async () => {
+                          try {
+                            setIsLoading(true);
+                            await axios.put('/api/users', {
+                              userId: u.id,
+                              fingerprint_id: u.id.toString(),
+                              is_fingerprint_active: true
+                            });
+                            showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
+                            fetchDashboardData();
+                          } catch(e) {
+                            showToast('Gagal mengaktifkan', 'error');
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                      >
+                        <ShieldCheck size={14} className="mr-1.5" />
+                        {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{u.name}</td>
-                      <td className="p-4 text-slate-500">{u.username}</td>
-                      <td className="p-4 font-bold">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
-                      <td className="p-4">
-                        {u.fingerprint_id ? (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
-                            <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                            Belum Didaftarkan
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {!u.room_id ? (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
-                        ) : !u.is_fingerprint_active ? (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
-                        ) : (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <button
-                          onClick={async () => {
-                            try {
-                              setIsLoading(true);
-                              await axios.put('/api/users', {
-                                userId: u.id,
-                                fingerprint_id: u.id.toString(),
-                                is_fingerprint_active: true
-                              });
-                              showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
-                              fetchDashboardData();
-                            } catch(e) {
-                              showToast('Gagal mengaktifkan', 'error');
-                            } finally {
-                              setIsLoading(false);
-                            }
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
-                        >
-                          <ShieldCheck size={14} className="mr-1.5" />
-                          {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                ))}
+              </tbody>
             </table>
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW: LAPORAN KEUANGAN */}
-        {/* ========================================================================= */}
         {view === 'admin_reports' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
@@ -1744,7 +1785,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* TABEL BUKU KAS GABUNGAN DI LAYAR DENGAN METODE BAYAR */}
+            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                 <div>
@@ -1926,9 +1967,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW: LOG PINTU */}
-        {/* ========================================================================= */}
         {view === 'admin_logs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -1938,10 +1977,10 @@ export default function App() {
             <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
                 <tbody className="divide-y">
-                  {logs.map(l => (
+                  {safeLogs.map(l => (
                     <tr key={l.id} className="hover:bg-slate-50">
                       <td className="p-4 whitespace-nowrap">{new Date(l.timestamp).toLocaleString()}</td>
-                      <td className="p-4 font-bold">{users.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
+                      <td className="p-4 font-bold">{safeUsers.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
                       <td className="p-4 text-slate-600">{l.action}</td>
                     </tr>
                   ))}
@@ -1950,9 +1989,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* VIEW: PENGATURAN */}
-        {/* ========================================================================= */}
         {view === 'admin_settings' && (
           <div className="space-y-6 max-w-4xl">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -2259,7 +2296,7 @@ export default function App() {
   );
 
   const renderResident = () => {
-    if (!currentUser.room_id) {
+    if (!currentUser?.room_id) {
       return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8">
           <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
@@ -2268,7 +2305,7 @@ export default function App() {
           </nav>
           <div className="max-w-4xl mx-auto">
              <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
-               <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser.name}!</h2>
+               <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser?.name}!</h2>
                <p className="text-slate-600">Silakan pilih kamar kosong di bawah ini untuk mulai menyewa.</p>
              </div>
              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -2286,10 +2323,10 @@ export default function App() {
       );
     }
 
-    const myBills = bills.filter(b => b.user_id === currentUser.id);
+    const myBills = safeBills.filter(b => b.user_id === currentUser?.id);
     const pendingBill = myBills.find(b => b.status === 'pending');
     const historyBills = myBills.filter(b => b.status === 'lunas'); 
-    const isActive = currentUser.is_fingerprint_active;
+    const isActive = Boolean(currentUser?.is_fingerprint_active);
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -2336,7 +2373,7 @@ export default function App() {
                       <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
                         <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
                         <div className="font-black text-lg">KAMAR AKTIF</div>
-                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{formatDateSafe(currentUser.active_until)}</strong></p>
+                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{formatDateSafe(currentUser?.active_until)}</strong></p>
                       </div>
                     ) : (
                       <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
@@ -2359,7 +2396,7 @@ export default function App() {
                       <p className="font-bold">Akses Kamar Terkunci</p>
                       <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
                     </div>
-                ) : currentUser.fingerprint_id ? (
+                ) : currentUser?.fingerprint_id ? (
                     <div className="p-6">
                        <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
                        <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
@@ -2441,11 +2478,11 @@ export default function App() {
                                    try {
                                      setIsLoading(true);
                                      await axios.put('/api/users', {
-                                       userId: currentUser.id,
-                                       fingerprint_id: currentUser.id.toString(),
+                                       userId: currentUser?.id,
+                                       fingerprint_id: currentUser?.id.toString(),
                                        is_fingerprint_active: true
                                      });
-                                     setCurrentUser({ ...currentUser, fingerprint_id: currentUser.id.toString(), is_fingerprint_active: true });
+                                     setCurrentUser({ ...currentUser, fingerprint_id: currentUser?.id.toString(), is_fingerprint_active: true });
                                      showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
                                      fetchDashboardData();
                                    } catch(e) {
@@ -2508,16 +2545,16 @@ export default function App() {
              <div className="space-y-6 max-w-2xl mx-auto">
                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-5">
                  <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-4 border-blue-50 shadow-inner">
-                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                   {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                  </div>
                  <div className="text-center sm:text-left flex-1">
-                   <h3 className="font-black text-xl text-slate-800">{currentUser.name}</h3>
-                   <p className="text-xs text-slate-400 font-mono">@{currentUser.username}</p>
+                   <h3 className="font-black text-xl text-slate-800">{currentUser?.name}</h3>
+                   <p className="text-xs text-slate-400 font-mono">@{currentUser?.username}</p>
                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start mt-2.5">
                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                       Kamar {rooms.find(r => r.id === currentUser.room_id)?.number || '-'}
+                       Kamar {safeRooms.find(r => r.id === currentUser?.room_id)?.number || '-'}
                      </span>
-                     {currentUser.is_fingerprint_active ? (
+                     {currentUser?.is_fingerprint_active ? (
                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
                          <CheckCircle size={12} className="mr-1" /> Akses Aktif
                        </span>
@@ -2545,7 +2582,7 @@ export default function App() {
                      <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nama Lengkap</label>
                      <div className="relative">
                        <User size={16} className="absolute left-3 top-3.5 text-slate-400" />
-                       <input type="text" name="name" defaultValue={currentUser.name} className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                       <input type="text" name="name" defaultValue={currentUser?.name || ''} className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
                      </div>
                    </div>
 
@@ -2554,14 +2591,14 @@ export default function App() {
                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor WhatsApp</label>
                        <div className="relative">
                          <Phone size={16} className="absolute left-3 top-3.5 text-slate-400" />
-                         <input type="tel" name="phone" defaultValue={currentUser.phone || ''} placeholder="08123456789" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                         <input type="tel" name="phone" defaultValue={currentUser?.phone || ''} placeholder="08123456789" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
                        </div>
                      </div>
                      <div>
                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Email</label>
                        <div className="relative">
                          <Mail size={16} className="absolute left-3 top-3.5 text-slate-400" />
-                         <input type="email" name="email" defaultValue={currentUser.email || ''} placeholder="nama@email.com" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                         <input type="email" name="email" defaultValue={currentUser?.email || ''} placeholder="nama@email.com" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
                        </div>
                      </div>
                    </div>
@@ -2570,7 +2607,7 @@ export default function App() {
                      <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Alamat Lengkap (KTP)</label>
                      <div className="relative">
                        <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
-                       <textarea name="address" defaultValue={currentUser.address || ''} rows={2} placeholder="Alamat asal / KTP" className="w-full pl-9 p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium" required></textarea>
+                       <textarea name="address" defaultValue={currentUser?.address || ''} rows={2} placeholder="Alamat asal / KTP" className="w-full pl-9 p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium" required></textarea>
                      </div>
                    </div>
 
@@ -2643,6 +2680,8 @@ export default function App() {
     );
   };
 
+  const isAuthView = !currentUser || view === 'login' || view === 'register';
+
   return (
     <div className="font-sans text-slate-800 bg-slate-100 min-h-screen">
       <style>{`
@@ -2668,7 +2707,7 @@ export default function App() {
         }
       `}</style>
 
-      {view === 'login' || view === 'register' ? renderAuth() : view.startsWith('admin') ? renderAdmin() : renderResident()}
+      {isAuthView ? renderAuth() : currentUser.role === 'admin' ? renderAdmin() : renderResident()}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 print:hidden">
            <div className={`px-6 py-4 rounded-xl shadow-xl font-bold flex items-center ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
@@ -2677,5 +2716,13 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }
