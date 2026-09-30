@@ -6,7 +6,7 @@ import {
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
   Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles,
-  MessageSquare, Send, Menu
+  MessageSquare, Send
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -16,7 +16,7 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
     this.state = { hasError: false, error: '' };
   }
   static getDerivedStateFromError(error: any) {
-    return { hasError: true, error: error?.message || 'Terjadi gangguan sistem' };
+    return { hasError: true, error: error?.message || 'Terjadi kesalahan sistem' };
   }
   componentDidCatch(error: any, info: any) {
     console.error("SmartKos Crash Prevented:", error, info);
@@ -127,7 +127,7 @@ const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
         type="button" 
         onClick={onEditClick}
         className="group inline-flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer text-left"
-        title="Klik untuk koreksi channel pembayaran"
+        title="Klik untuk ubah channel pembayaran"
       >
         {badgeContent}
         <Edit size={12} className="text-slate-400 group-hover:text-blue-600 transition" />
@@ -169,6 +169,7 @@ const formatDueDate25 = (dateVal: any) => {
   }
 };
 
+// Evaluasi status pembayaran kamar berdasarkan aturan tanggal 25
 const isResidentPaid = (resident: any, residentBills: any[]) => {
   if (!resident) return false;
 
@@ -176,20 +177,24 @@ const isResidentPaid = (resident: any, residentBills: any[]) => {
   const pendingBills = residentBills.filter(b => b.status === 'pending');
   const hasPendingBill = pendingBills.length > 0;
 
+  // Cek apakah penghuni sudah pernah melakukan pembayaran atau akses sidik jari telah aktif
   const isEverPaid = Boolean(
     hasLunasBill || 
     resident.is_fingerprint_active || 
     (resident.active_until && new Date(resident.active_until).getTime() > 0)
   );
 
+  // Jika penghuni baru belum pernah membayar sama sekali, statusnya Belum Lunas
   if (!isEverPaid) {
     return false;
   }
 
+  // Jika tidak ada tagihan pending yang tertahan, statusnya Lunas
   if (!hasPendingBill) {
     return true;
   }
 
+  // Jika ada tagihan pending berjalan, periksa apakah tanggal hari ini sudah melewati tanggal 25
   const now = new Date();
   const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -211,6 +216,7 @@ const isResidentPaid = (resident: any, residentBills: any[]) => {
     return todayOnly.getTime() > dueDateOnly.getTime();
   });
 
+  // Sebelum tanggal 25 (misal tanggal 1-25), status kamar tetap LUNAS
   return !isOverdue;
 };
 
@@ -228,7 +234,6 @@ function AppContent() {
     return saved || 'login';
   }); 
   
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [lastRegUsername, setLastRegUsername] = useState('');
   
   const [users, setUsers] = useState<any[]>([]);
@@ -257,6 +262,7 @@ function AppContent() {
 
   const [testWaPhone, setTestWaPhone] = useState('');
 
+  // State Pengelolaan Akun & Pencarian User
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userFilterTab, setUserFilterTab] = useState<'all' | 'no_room' | 'has_room' | 'active'>('all');
   const [adminUserModal, setAdminUserModal] = useState<{ type: 'add' | 'edit', data?: any } | null>(null);
@@ -452,7 +458,6 @@ function AppContent() {
   const logout = () => { 
     setCurrentUser(null); 
     setView('login'); 
-    setIsMobileMenuOpen(false);
     localStorage.removeItem('smartkos_user');
     localStorage.removeItem('smartkos_view');
   };
@@ -624,6 +629,7 @@ function AppContent() {
     } catch (error) { showToast('Gagal memproses kamar. Coba lagi.', 'error'); }
   };
 
+  // Handler Admin: Simpan (Tambah Baru / Edit Profil) Pengguna
   const handleSaveAdminUser = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -669,6 +675,7 @@ function AppContent() {
     }
   };
 
+  // Handler Admin: Konfirmasi Hapus Akun Pengguna
   const handleConfirmDeleteUser = async () => {
     if (!deleteUserModal) return;
     setIsLoading(true);
@@ -684,6 +691,7 @@ function AppContent() {
     }
   };
 
+  // Handler Admin: Toggle Akses Sidik Jari / Buka Akses Pengguna
   const handleToggleUserAccess = async (u: any) => {
     setIsLoading(true);
     try {
@@ -876,6 +884,7 @@ function AppContent() {
     return hasResident || r.status === 'occupied' || Boolean(r.resident_id);
   };
 
+  // Hitung jumlah penyewa yang benar-benar belum lunas (overdue lewat tgl 25 atau belum pernah bayar)
   const unpaidTenantsCount = safeRooms.filter(r => {
     if (!isRoomOccupied(r)) return false;
     const resident = safeUsers.find(u => 
@@ -1114,68 +1123,52 @@ function AppContent() {
   const pendingBillsList = safeBills.filter(b => b.status === 'pending');
   const historyBillsList = safeBills.filter(b => b.status === 'lunas');
 
-  const adminNavItems = [
-    { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
-    { id: 'admin_payments', icon: CreditCard, label: 'Pembayaran' },
-    { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
-    { id: 'admin_reports', icon: BarChart3, label: 'Laporan Keuangan' },
-    { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
-    { id: 'admin_users', icon: Users, label: 'Kelola User' },
-    { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
-  ];
-
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+      <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border">
         <div className="text-center mb-6">
-          <div className="bg-blue-600 p-3 rounded-2xl text-white inline-block mb-3 shadow-md shadow-blue-600/30">
-            <Fingerprint size={32} />
-          </div>
+          <div className="bg-blue-600 p-3 rounded-full text-white inline-block mb-3"><Fingerprint size={32} /></div>
           <h1 className="text-2xl font-black text-slate-800">SmartKos System</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Masuk / Daftar Area Penghuni</p>
+          <p className="text-slate-500 text-sm">Masuk / Daftar Area Penghuni</p>
         </div>
 
         {view === 'login' || (!currentUser && view !== 'register') ? (
           <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 font-medium" required />
-            <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 font-medium" required />
-            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 cursor-pointer text-sm transition">
-              {isLoading ? 'Memproses...' : 'Login ke Akun'}
-            </button>
-            <p className="text-center text-xs sm:text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline cursor-pointer">Daftar Baru</button></p>
+            <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow hover:bg-blue-700 cursor-pointer">Login</button>
+            <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline cursor-pointer">Daftar Baru</button></p>
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Nama Lengkap</label>
-              <input type="text" name="name" placeholder="Contoh: Rian Pratama" autoComplete="name" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+              <input type="text" name="name" placeholder="Contoh: Rian Pratama" autoComplete="name" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Alamat Lengkap (KTP)</label>
-              <textarea name="address" rows={2} placeholder="Alamat asal / domisili KTP lengkap" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 resize-none" required></textarea>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Alamat Lengkap</label>
+              <textarea name="address" rows={2} placeholder="Alamat asal / domisili KTP lengkap" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 resize-none" required></textarea>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Username</label>
-                <input type="text" name="username" placeholder="Username baru" autoComplete="username" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 font-mono" required />
+                <input type="text" name="username" placeholder="Username baru" autoComplete="username" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Nomor WhatsApp</label>
-                <input type="tel" name="phone" placeholder="Contoh: 08123456789" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+                <input type="tel" name="phone" placeholder="Contoh: 08123456789" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Email Aktif</label>
-              <input type="email" name="email" placeholder="nama@email.com" autoComplete="email" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+              <input type="email" name="email" placeholder="nama@email.com" autoComplete="email" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Password</label>
-              <input type="password" name="password" placeholder="Password akun" autoComplete="new-password" className="w-full p-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+              <input type="password" name="password" placeholder="Password akun" autoComplete="new-password" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
             </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-green-700 transition mt-2 cursor-pointer text-sm">
-              {isLoading ? 'Mendaftarkan...' : 'Daftar Akun'}
-            </button>
-            <p className="text-center text-xs sm:text-sm text-slate-600 mt-3">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline cursor-pointer">Login</button></p>
+            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700 transition mt-2 cursor-pointer">Daftar Akun</button>
+            <p className="text-center text-sm text-slate-600 mt-3">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline cursor-pointer">Login</button></p>
           </form>
         )}
       </div>
@@ -1183,116 +1176,32 @@ function AppContent() {
   );
 
   const renderAdmin = () => (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      {/* 1. TOPBAR MOBILE ADMIN */}
-      <div className="md:hidden bg-slate-900 text-white px-4 py-3 flex justify-between items-center sticky top-0 z-30 shadow-md print:hidden">
-        <div className="flex items-center space-x-2.5">
-          <div className="p-1.5 bg-blue-600 rounded-lg text-white">
-            <Fingerprint size={20} />
-          </div>
-          <span className="font-black text-lg tracking-tight">SmartKos</span>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={() => fetchDashboardData(true)} 
-            className="p-2 text-slate-300 hover:text-white rounded-lg active:scale-95 transition"
-            title="Segarkan Data"
-          >
-            <RefreshCcw size={18} className={isLoading ? 'animate-spin text-blue-400' : ''} />
-          </button>
-          <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-            className="p-2 bg-slate-800 text-white rounded-lg active:scale-95 transition focus:outline-none"
-            aria-label="Toggle Navigation Menu"
-          >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-      </div>
-
-      {/* 2. DRAWER MENU MOBILE */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden flex print:hidden">
-          <div 
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <div className="relative flex-1 flex flex-col max-w-[280px] w-full bg-slate-900 text-white z-50 p-5 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <Fingerprint className="text-blue-400" size={24} />
-                <span className="font-black text-lg">Menu Admin</span>
-              </div>
-              <button 
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <nav className="flex-1 py-4 space-y-1.5 overflow-y-auto text-sm">
-              {adminNavItems.map(item => {
-                const isActive = (view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history')));
-                return (
-                  <button 
-                    key={item.id} 
-                    onClick={() => {
-                      setView(item.id);
-                      setIsMobileMenuOpen(false);
-                    }} 
-                    className={`w-full flex items-center space-x-3 p-3 rounded-xl transition cursor-pointer text-left ${isActive ? 'bg-blue-600 font-bold text-white shadow-md' : 'hover:bg-slate-800 text-slate-300'}`}
-                  >
-                    <item.icon size={18} /> <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="pt-4 border-t border-slate-800">
-              <button 
-                onClick={logout} 
-                className="w-full flex items-center p-3 text-rose-400 hover:bg-rose-600 hover:text-white rounded-xl transition cursor-pointer font-bold text-sm"
-              >
-                <LogOut size={18} className="mr-3" /> Keluar Sistem
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. SIDEBAR DESKTOP */}
-      <div className="w-64 bg-slate-900 text-white flex-col hidden md:flex print:hidden flex-shrink-0">
+    <div className="flex min-h-screen bg-slate-50">
+      <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex print:hidden">
         <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
           <Fingerprint className="text-blue-400" size={28} />
           <span className="font-bold text-xl">AdminKos</span>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto text-sm">
-          {adminNavItems.map(item => {
-            const isActive = (view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history')));
-            return (
-              <button 
-                key={item.id} 
-                onClick={() => setView(item.id)} 
-                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition cursor-pointer ${isActive ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}
-              >
-                <item.icon size={18} /> <span>{item.label}</span>
-              </button>
-            );
-          })}
+          {[
+            { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
+            { id: 'admin_payments', icon: CreditCard, label: 'Pembayaran' },
+            { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
+            { id: 'admin_reports', icon: BarChart3, label: 'Laporan Keuangan' },
+            { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
+            { id: 'admin_users', icon: Users, label: 'Kelola User' },
+            { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
+          ].map(item => (
+            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition cursor-pointer ${(view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history'))) ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+              <item.icon size={18} /> <span>{item.label}</span>
+            </button>
+          ))}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition cursor-pointer">
-            <LogOut size={18} className="mr-3" /> Keluar
-          </button>
-        </div>
+        <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition cursor-pointer"><LogOut size={18} className="mr-3" /> Keluar</button></div>
       </div>
 
-      {/* 4. KONTEN UTAMA */}
-      <div className="flex-1 p-3.5 sm:p-5 md:p-8 overflow-y-auto print:p-0 print:bg-white print:overflow-visible pb-16 md:pb-8">
-        {/* Topbar Desktop */}
-        <div className="hidden md:flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto print:p-0 print:bg-white">
+        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
           <div>
             <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
             <p className="text-xs text-slate-500">Monitoring Hunian, Akses Pintu Biometrik & Arus Kas</p>
@@ -1304,122 +1213,121 @@ function AppContent() {
 
         {/* VIEW 1: DASHBOARD UTAMA */}
         {view === 'admin_dashboard' && (
-          <div className="space-y-4 md:space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <div className="bg-[#1e293b] text-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
-                <div className="flex justify-between items-start mb-2 sm:mb-3">
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 tracking-wider uppercase">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#1e293b] text-white p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-300 tracking-wider uppercase">
                     PEMASUKAN
                   </span>
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300">
-                    <TrendingUp size={15} />
+                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300">
+                    <TrendingUp size={16} />
                   </div>
                 </div>
                 <div>
-                  <div className="text-lg sm:text-2xl font-black tracking-tight mb-0.5 sm:mb-1">
+                  <div className="text-2xl font-black tracking-tight mb-1">
                     Rp {totalPemasukan.toLocaleString('id-ID')}
                   </div>
-                  <span className="text-[10px] sm:text-xs text-slate-400 font-medium">
-                    {totalLunasCount} dari {totalTenantsWithRooms} lunas
+                  <span className="text-xs text-slate-400 font-medium">
+                    {totalLunasCount} dari {totalTenantsWithRooms} penyewa lunas
                   </span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex justify-between items-start mb-2 sm:mb-3">
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                     PENGELUARAN
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button 
                       onClick={() => setExpenseModal(true)} 
-                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer" 
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer" 
                       title="Catat Pengeluaran"
                     >
-                      <Plus size={13} />
+                      <Plus size={14} />
                     </button>
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                      <TrendingDown size={15} />
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                      <TrendingDown size={16} />
                     </div>
                   </div>
                 </div>
                 <div>
-                  <div className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight mb-0.5 sm:mb-1">
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
                     Rp {totalPengeluaran.toLocaleString('id-ID')}
                   </div>
-                  <span className="text-[10px] sm:text-xs text-slate-400 font-medium">Bulan ini</span>
+                  <span className="text-xs text-slate-400 font-medium">Bulan ini</span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex justify-between items-start mb-2 sm:mb-3">
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                     BELUM LUNAS
                   </span>
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                    <Clock size={15} />
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Clock size={16} />
                   </div>
                 </div>
                 <div>
-                  <div className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight mb-0.5 sm:mb-1 flex items-baseline gap-1">
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1 flex items-baseline gap-1.5">
                     <span>{totalBelumLunas}</span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-500">penyewa</span>
+                    <span className="text-sm font-semibold text-slate-500">penyewa</span>
                   </div>
-                  <span className="text-[10px] sm:text-xs text-slate-400 font-medium">Butuh ditagih</span>
+                  <span className="text-xs text-slate-400 font-medium">Butuh ditagih</span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                     HUNIAN
                   </span>
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
-                    <Home size={15} />
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                    <Home size={16} />
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm sm:text-base font-black text-slate-800 tracking-tight mb-1.5 sm:mb-2">
-                    {kamarTerisiCount}/{totalKamarCount} <span className="text-[11px] sm:text-xs font-semibold text-slate-400">terisi</span>
+                  <div className="text-base font-black text-slate-800 tracking-tight mb-2">
+                    {kamarTerisiCount}/{totalKamarCount} <span className="text-xs font-semibold text-slate-400">kamar terisi</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-1">
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-1.5">
                     <div 
                       className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
                       style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
                     ></div>
                   </div>
-                  <span className="text-[10px] sm:text-xs text-slate-400 font-medium">{occupancyPercent}% hunian</span>
+                  <span className="text-xs text-slate-400 font-medium">{occupancyPercent}% hunian</span>
                 </div>
               </div>
             </div>
 
             {/* STATUS KAMAR */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-800">Status Kamar</h3>
-                  <p className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">
+                  <h3 className="text-xl font-black text-slate-800">Status Kamar</h3>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
                     {sortedRooms.length} kamar · {kamarKosongCount} kosong · {totalBelumLunas} belum lunas
                   </p>
                 </div>
-                
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end overflow-x-auto pb-1 sm:pb-0">
-                  <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold whitespace-nowrap">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button 
                       onClick={() => setFloorFilter('all')} 
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer text-xs ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Semua ({sortedRooms.length})
                     </button>
                     <button 
                       onClick={() => setFloorFilter('lt2')} 
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer text-xs ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 2 ({roomsLantai2.length})
                     </button>
                     <button 
                       onClick={() => setFloorFilter('lt3')} 
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer text-xs ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 3 ({roomsLantai3.length})
                     </button>
@@ -1427,15 +1335,15 @@ function AppContent() {
 
                   <button 
                     onClick={() => setRoomModal({ type: 'add', data: {} })} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer whitespace-nowrap"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
                   >
-                    <Plus size={14} className="mr-1" /> Tambah Kamar
+                    <Plus size={15} className="mr-1.5" /> Tambah Kamar
                   </button>
                 </div>
               </div>
 
               {/* GRID DENAH STATUS KAMAR */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
                   const resident = safeUsers.find(u => 
                     (room.resident_id && String(u.id).trim() === String(room.resident_id).trim()) ||
@@ -1445,7 +1353,10 @@ function AppContent() {
                   const targetUserId = resident?.id || room.resident_id;
                   const residentBills = safeBills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
                   const isOccupied = Boolean(resident || room.status === 'occupied' || room.resident_id);
+
+                  // Gunakan fungsi penilaian cerdas aturan tanggal 25
                   const isPaid = isResidentPaid(resident, residentBills);
+
                   const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
 
                   const masukDateStr = formatDateSafe(resident?.created_at);
@@ -1459,19 +1370,19 @@ function AppContent() {
                   return (
                     <div 
                       key={room.id}
-                      className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition p-3.5 sm:p-4 flex flex-col justify-between"
+                      className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition p-4 flex flex-col justify-between"
                     >
                       <div>
-                        <div className="flex justify-between items-start mb-2.5">
+                        <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center space-x-2.5">
-                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
-                              <DoorOpen size={16} />
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
+                              <DoorOpen size={18} />
                             </div>
                             <div>
                               <h4 className="font-bold text-sm text-slate-800 leading-tight">
                                 Kamar {room.number}
                               </h4>
-                              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
+                              <span className="text-[11px] text-slate-400 font-medium">
                                 {floorLabel}
                               </span>
                             </div>
@@ -1479,23 +1390,23 @@ function AppContent() {
 
                           {isOccupied ? (
                             isPaid ? (
-                              <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200/60 inline-flex items-center">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200/60 inline-flex items-center">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> Lunas
                               </span>
                             ) : (
-                              <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200/60 inline-flex items-center">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200/60 inline-flex items-center">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
                               </span>
                             )
                           ) : (
-                            <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span> Kosong
                             </span>
                           )}
                         </div>
 
                         {isOccupied ? (
-                          <div className="space-y-1.5 my-2.5 text-xs">
+                          <div className="space-y-1.5 my-3 text-xs">
                             <div className="flex items-center text-slate-700 font-semibold truncate">
                               <UserCheck size={13} className="mr-2 text-slate-400 flex-shrink-0" />
                               <span className="truncate">{residentName}</span>
@@ -1504,43 +1415,43 @@ function AppContent() {
                               <Phone size={13} className="mr-2 text-slate-400 flex-shrink-0" />
                               <span>{residentPhone}</span>
                             </div>
-                            <div className="flex items-center text-[10px] sm:text-[11px] text-slate-400 pt-0.5">
+                            <div className="flex items-center text-[11px] text-slate-400 pt-0.5">
                               <Calendar size={13} className="mr-2 text-slate-400 flex-shrink-0" />
                               <span>Masuk: {masukDateStr}</span>
-                              <span className="mx-1">·</span>
+                              <span className="mx-1.5">·</span>
                               <span className={`font-semibold ${isPaid ? 'text-slate-600' : 'text-amber-600'}`}>
                                 JT: {dueDateStr}
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <div className="my-2.5 py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs font-semibold text-slate-400">
+                          <div className="my-3 py-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs font-semibold text-slate-400">
                             Kosong
                           </div>
                         )}
                       </div>
 
-                      <div className="pt-2.5 border-t border-slate-100 flex justify-between items-center text-xs">
+                      <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
                         <div>
-                          <span className="text-slate-400 text-[10px] sm:text-xs font-medium block">Sewa / bulan</span>
-                          <span className="font-black text-slate-800 text-xs sm:text-sm">
+                          <span className="text-slate-400 font-medium block">Sewa / bulan</span>
+                          <span className="font-black text-slate-800 text-sm">
                             Rp {Number(room.price || 0).toLocaleString('id-ID')}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button 
                             onClick={() => setRoomModal({ type: 'edit', data: room })}
-                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs cursor-pointer"
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs cursor-pointer"
                             title="Edit Data Kamar"
                           >
-                            <Edit size={12} className="mr-1" /> Edit
+                            <Edit size={13} className="mr-1" /> Edit
                           </button>
                           <button 
                             onClick={() => handleDeleteRoom(room.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Hapus Kamar"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -1554,301 +1465,213 @@ function AppContent() {
 
         {/* VIEW: PEMBAYARAN */}
         {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
-          <div className="space-y-4 md:space-y-6">
-            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
+          <div className="space-y-6">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h3 className="text-lg sm:text-xl font-black text-slate-800 flex items-center">
-                  <CreditCard className="mr-2 text-blue-600" size={22} /> Manajemen Pembayaran
+                <h3 className="text-xl font-black text-slate-800 flex items-center">
+                  <CreditCard className="mr-2.5 text-blue-600" size={24} /> Manajemen Pembayaran & Tagihan
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Format ADIBKOS, deteksi QRIS otomatis, dan tombol WhatsApp Fonnte
+                  Invoice format ADIBKOS, deteksi QRIS otomatis (GoPay, OVO, ShopeePay, DANA), dan arsip transaksi
                 </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
-                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto justify-center">
+              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button 
                     onClick={() => setPaymentTab('pending')}
-                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg flex items-center justify-center transition cursor-pointer ${paymentTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${paymentTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <Clock size={13} className="mr-1.5 text-amber-500" />
-                    Pending ({pendingBillsList.length})
+                    <Clock size={14} className="mr-1.5 text-amber-500" />
+                    Tagihan Berjalan ({pendingBillsList.length})
                   </button>
                   <button 
                     onClick={() => setPaymentTab('history')}
-                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg flex items-center justify-center transition cursor-pointer ${paymentTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${paymentTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <CheckCircle size={13} className="mr-1.5 text-emerald-500" />
-                    Lunas ({historyBillsList.length})
+                    <CheckCircle size={14} className="mr-1.5 text-emerald-500" />
+                    Riwayat Lunas ({historyBillsList.length})
                   </button>
                 </div>
 
                 <button 
                   onClick={handleGenerateBills} 
                   disabled={isLoading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center shadow-md shadow-emerald-600/20 transition cursor-pointer whitespace-nowrap"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap cursor-pointer"
                 >
-                  <Plus size={14} className="mr-1.5" /> Buat Tagihan Baru
+                  <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
                 </button>
               </div>
             </div>
 
-            {/* TAB PENDING */}
+            {/* TAB 1: TAGIHAN BERJALAN */}
             {paymentTab === 'pending' && (
-              <div className="space-y-3">
-                {/* Mobile Cards */}
-                <div className="grid grid-cols-1 gap-3 md:hidden">
-                  {pendingBillsList.map(b => {
-                    const user = safeUsers.find(u => u.id === b.user_id);
-                    const room = safeRooms.find(r => r.id === user?.room_id);
-                    return (
-                      <div key={b.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
-                            <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number} (${room.name})` : 'Belum pilih kamar'}</span>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            Belum Lunas
-                          </span>
-                        </div>
-
-                        <div className="p-2.5 bg-slate-50 rounded-xl space-y-1 text-xs">
-                          <div className="flex justify-between items-center font-mono">
-                            <span className="text-[11px] text-slate-400">Invoice:</span>
-                            <span className="font-bold text-blue-700">{b.ref_id}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] text-slate-400">Total Tagihan:</span>
-                            <span className="font-black text-rose-600 text-sm">Rp {Number(b.nominal).toLocaleString('id-ID')}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-slate-500 text-[11px]">
-                            <span>Jatuh Tempo:</span>
-                            <span className="font-semibold text-slate-700">{formatDueDate25(b.due_date)}</span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2 pt-1">
-                          <button 
-                            onClick={() => handleSetLunasManual(b.id, b.user_id)} 
-                            className="py-2 px-1 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-xl text-[11px] font-bold text-center active:scale-95 transition"
-                          >
-                            Set Lunas
-                          </button>
-                          <button 
-                            onClick={() => handleSendWaReminder(b.id)}
-                            disabled={isLoading}
-                            className="py-2 px-1 bg-green-600 text-white rounded-xl text-[11px] font-bold text-center shadow-xs active:scale-95 transition flex items-center justify-center"
-                          >
-                            <MessageSquare size={12} className="mr-1" /> Kirim WA
-                          </button>
-                          <button 
-                            onClick={() => setBillModal(b)} 
-                            className="py-2 px-1 bg-blue-50 text-blue-700 border border-blue-300 rounded-xl text-[11px] font-bold text-center active:scale-95 transition"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {pendingBillsList.length === 0 && (
-                    <div className="bg-white p-8 rounded-2xl border text-center text-slate-400">
-                      <CheckCircle size={36} className="mx-auto text-emerald-500 mb-2 opacity-80" />
-                      <p className="font-bold text-slate-700 text-sm">Semua Tagihan Lunas!</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Tidak ada tagihan tertunda.</p>
-                    </div>
-                  )}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <h4 className="font-bold text-sm text-slate-800">Daftar Tagihan Sewa (Pending / Belum Lunas)</h4>
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">Total: {pendingBillsList.length} tagihan</span>
                 </div>
 
-                {/* Desktop Table */}
-                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
-                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                        <tr>
-                          <th className="p-4">Penghuni & Kamar</th>
-                          <th className="p-4">Ref TokoPay (Invoice)</th>
-                          <th className="p-4">Nominal</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4">Jatuh Tempo</th>
-                          <th className="p-4 text-center">Aksi Pengelola</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {pendingBillsList.map(b => {
-                          const user = safeUsers.find(u => u.id === b.user_id);
-                          const room = safeRooms.find(r => r.id === user?.room_id);
-                          return (
-                            <tr key={b.id} className="hover:bg-slate-50/80 transition">
-                              <td className="p-4">
-                                <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
-                                <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number} (${room.name})` : 'Belum pilih kamar'}</span>
-                              </td>
-                              <td className="p-4 font-mono font-bold text-slate-700 text-xs">
-                                <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-200">
-                                  {b.ref_id}
-                                </span>
-                              </td>
-                              <td className="p-4 font-black text-rose-600 font-mono text-sm">
-                                Rp {Number(b.nominal).toLocaleString('id-ID')}
-                              </td>
-                              <td className="p-4">
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 inline-flex items-center">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
-                                </span>
-                              </td>
-                              <td className="p-4 text-slate-600 font-semibold">
-                                {formatDueDate25(b.due_date)}
-                              </td>
-                              <td className="p-4 text-center">
-                                <div className="inline-flex items-center gap-2">
-                                  <button 
-                                    onClick={() => handleSetLunasManual(b.id, b.user_id)} 
-                                    className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
-                                  >
-                                    <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
-                                  </button>
-                                  <button 
-                                    onClick={() => handleSendWaReminder(b.id)}
-                                    disabled={isLoading}
-                                    className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
-                                    title="Kirim pengingat WhatsApp"
-                                  >
-                                    <MessageSquare size={13} className="mr-1.5 text-emerald-600" /> Kirim WA
-                                  </button>
-                                  <button 
-                                    onClick={() => setBillModal(b)} 
-                                    className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
-                                  >
-                                    <Edit size={13} className="mr-1.5 text-blue-600" /> Edit
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {pendingBillsList.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="p-10 text-center text-slate-400">
-                              <CheckCircle size={40} className="mx-auto text-emerald-500 mb-2 opacity-80" />
-                              <p className="font-bold text-slate-700 text-sm">Semua Tagihan Sewa Lunas!</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Penghuni & Kamar</th>
+                        <th className="p-4">Ref TokoPay (Invoice)</th>
+                        <th className="p-4">Nominal</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Jatuh Tempo</th>
+                        <th className="p-4 text-center">Aksi Pengelola</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pendingBillsList.map(b => {
+                        const user = safeUsers.find(u => u.id === b.user_id);
+                        const room = safeRooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-4">
+                              <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
+                              <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number} (${room.name})` : 'Belum pilih kamar'}</span>
+                            </td>
+                            <td className="p-4 font-mono font-bold text-slate-700 text-xs">
+                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-200">
+                                {b.ref_id}
+                              </span>
+                            </td>
+                            <td className="p-4 font-black text-rose-600 font-mono text-sm">
+                              Rp {Number(b.nominal).toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
+                              </span>
+                            </td>
+                            <td className="p-4 text-slate-600 font-semibold">
+                              {formatDueDate25(b.due_date)}
+                            </td>
+                            <td className="p-4 text-center">
+                              <div className="inline-flex items-center gap-2">
+                                <button 
+                                  onClick={() => handleSetLunasManual(b.id, b.user_id)} 
+                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
+                                >
+                                  <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
+                                </button>
+                                <button 
+                                  onClick={() => handleSendWaReminder(b.id)}
+                                  disabled={isLoading}
+                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
+                                  title="Kirim pesan pengingat jatuh tempo via WhatsApp Fonnte"
+                                >
+                                  <MessageSquare size={13} className="mr-1.5 text-emerald-600" /> Kirim WA
+                                </button>
+                                <button 
+                                  onClick={() => setBillModal(b)} 
+                                  className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
+                                >
+                                  <Edit size={13} className="mr-1.5 text-blue-600" /> Edit Nominal
+                                </button>
+                              </div>
                             </td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                        );
+                      })}
+
+                      {pendingBillsList.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-10 text-center text-slate-400">
+                            <CheckCircle size={40} className="mx-auto text-emerald-500 mb-2 opacity-80" />
+                            <p className="font-bold text-slate-700 text-sm">Semua Tagihan Sewa Lunas!</p>
+                            <p className="text-xs text-slate-400 mt-1">Tidak ada tagihan tertunda yang perlu ditagihkan.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {/* TAB HISTORY */}
+            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
             {paymentTab === 'history' && (
-              <div className="space-y-3">
-                {/* Mobile Cards */}
-                <div className="grid grid-cols-1 gap-3 md:hidden">
-                  {historyBillsList.map(b => {
-                    const user = safeUsers.find(u => u.id === b.user_id);
-                    const room = safeRooms.find(r => r.id === user?.room_id);
-                    return (
-                      <div key={b.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
-                            <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number}` : '-'} · {formatDateSafe(b.created_at || b.due_date)}</span>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
-                            LUNAS
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
-                          <div>{renderPaymentBadge(b.payment_method, () => setChangeMethodModal(b))}</div>
-                          <span className="font-black text-emerald-600 font-mono text-sm">Rp {Number(b.nominal).toLocaleString('id-ID')}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-[11px]">
-                          <span className="font-mono text-slate-400 truncate max-w-[180px]">{b.ref_id}</span>
-                          <button 
-                            onClick={() => handleDeleteHistory(b.id)}
-                            className="text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 text-xs font-bold transition flex items-center"
-                          >
-                            <Trash2 size={12} className="mr-1" /> Hapus
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {historyBillsList.length === 0 && (
-                    <div className="bg-white p-8 rounded-2xl border text-center text-slate-400">
-                      <History size={36} className="mx-auto text-slate-300 mb-2" />
-                      <p className="font-bold text-slate-700 text-sm">Belum Ada Riwayat Transaksi</p>
-                    </div>
-                  )}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <h4 className="font-bold text-sm text-slate-800">Arsip Riwayat Pembayaran (Status Lunas)</h4>
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">Total: {historyBillsList.length} transaksi</span>
                 </div>
 
-                {/* Desktop Table */}
-                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
-                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Tanggal Pembayaran</th>
+                        <th className="p-4">Penghuni & Kamar</th>
+                        <th className="p-4">Ref TokoPay (Invoice)</th>
+                        <th className="p-4">Metode Bayar</th>
+                        <th className="p-4">Nominal Masuk</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {historyBillsList.map(b => {
+                        const user = safeUsers.find(u => u.id === b.user_id);
+                        const room = safeRooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-4 text-slate-600">
+                              {formatDateSafe(b.created_at || b.due_date)}
+                            </td>
+                            <td className="p-4">
+                              <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
+                              <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number}` : '-'}</span>
+                            </td>
+                            <td className="p-4 font-mono font-bold text-slate-700 text-xs">
+                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200">
+                                {b.ref_id}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              {renderPaymentBadge(b.payment_method, () => setChangeMethodModal(b))}
+                            </td>
+                            <td className="p-4 font-black text-emerald-600 font-mono text-sm">
+                              Rp {Number(b.nominal).toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center">
+                                <CheckCircle size={12} className="mr-1.5 text-emerald-600" /> LUNAS
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <button 
+                                onClick={() => handleDeleteHistory(b.id)} 
+                                className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center cursor-pointer"
+                              >
+                                <Trash2 size={13} className="mr-1.5" /> Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {historyBillsList.length === 0 && (
                         <tr>
-                          <th className="p-4">Tanggal Pembayaran</th>
-                          <th className="p-4">Penghuni & Kamar</th>
-                          <th className="p-4">Ref TokoPay (Invoice)</th>
-                          <th className="p-4">Metode Bayar</th>
-                          <th className="p-4">Nominal Masuk</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4 text-center">Aksi</th>
+                          <td colSpan={7} className="p-10 text-center text-slate-400">
+                            <History size={40} className="mx-auto text-slate-300 mb-2" />
+                            <p className="font-bold text-slate-700 text-sm">Belum Ada Riwayat Transaksi</p>
+                            <p className="text-xs text-slate-400 mt-1">Transaksi yang sudah lunas akan tercatat otomatis di sini.</p>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {historyBillsList.map(b => {
-                          const user = safeUsers.find(u => u.id === b.user_id);
-                          const room = safeRooms.find(r => r.id === user?.room_id);
-                          return (
-                            <tr key={b.id} className="hover:bg-slate-50/80 transition">
-                              <td className="p-4 text-slate-600">
-                                {formatDateSafe(b.created_at || b.due_date)}
-                              </td>
-                              <td className="p-4">
-                                <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
-                                <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number}` : '-'}</span>
-                              </td>
-                              <td className="p-4 font-mono font-bold text-slate-700 text-xs">
-                                <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200">
-                                  {b.ref_id}
-                                </span>
-                              </td>
-                              <td className="p-4">
-                                {renderPaymentBadge(b.payment_method, () => setChangeMethodModal(b))}
-                              </td>
-                              <td className="p-4 font-black text-emerald-600 font-mono text-sm">
-                                Rp {Number(b.nominal).toLocaleString('id-ID')}
-                              </td>
-                              <td className="p-4">
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center">
-                                  <CheckCircle size={12} className="mr-1.5 text-emerald-600" /> LUNAS
-                                </span>
-                              </td>
-                              <td className="p-4 text-center">
-                                <button 
-                                  onClick={() => handleDeleteHistory(b.id)} 
-                                  className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center cursor-pointer"
-                                >
-                                  <Trash2 size={13} className="mr-1.5" /> Hapus
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -1858,47 +1681,47 @@ function AppContent() {
         {/* VIEW: BUKU PENGELUARAN */}
         {view === 'admin_expenses' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="font-black text-lg sm:text-xl text-slate-800">Catatan Pengeluaran Kos</h3>
+                <h3 className="font-black text-xl text-slate-800">Catatan Pengeluaran Kos</h3>
                 <p className="text-xs text-slate-500">Mencatat biaya listrik, air, internet, perbaikan, dan kebersihan</p>
               </div>
               <button 
                 onClick={() => setExpenseModal(true)} 
-                className="w-full sm:w-auto bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center shadow-md hover:bg-rose-700 transition text-xs sm:text-sm cursor-pointer"
+                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm cursor-pointer"
               >
-                <Plus size={16} className="mr-1.5" /> Catat Pengeluaran Baru
+                <Plus size={16} className="mr-2" /> Catat Pengeluaran Baru
               </button>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap">
+              <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50 border-b">
                   <tr>
-                    <th className="p-3.5 sm:p-4">Tanggal</th>
-                    <th className="p-3.5 sm:p-4">Keperluan / Keterangan</th>
-                    <th className="p-3.5 sm:p-4">Kategori</th>
-                    <th className="p-3.5 sm:p-4">Nominal</th>
-                    <th className="p-3.5 sm:p-4">Aksi</th>
+                    <th className="p-4">Tanggal</th>
+                    <th className="p-4">Keperluan / Keterangan</th>
+                    <th className="p-4">Kategori</th>
+                    <th className="p-4">Nominal</th>
+                    <th className="p-4">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {safeExpenses.map(exp => (
                     <tr key={exp.id} className="hover:bg-slate-50">
-                      <td className="p-3.5 sm:p-4 text-slate-500">{formatDateSafe(exp.expense_date || exp.created_at)}</td>
-                      <td className="p-3.5 sm:p-4 font-bold text-slate-800">{exp.title}</td>
-                      <td className="p-3.5 sm:p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
-                      <td className="p-3.5 sm:p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
-                      <td className="p-3.5 sm:p-4">
+                      <td className="p-4 text-slate-500">{formatDateSafe(exp.expense_date || exp.created_at)}</td>
+                      <td className="p-4 font-bold text-slate-800">{exp.title}</td>
+                      <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
+                      <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
+                      <td className="p-4">
                         <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition cursor-pointer">
-                          <Trash2 size={15} />
+                          <Trash2 size={16} />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {safeExpenses.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran.</td>
+                      <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran. Klik tombol di atas untuk menambah.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1907,10 +1730,11 @@ function AppContent() {
           </div>
         )}
 
-        {/* VIEW: KELOLA USER */}
+        {/* VIEW: KELOLA USER (PANEL ADMIN PROFESIONAL: PENCARIAN NAMA & USER BARU DI ATAS) */}
         {view === 'admin_users' && (() => {
           const nonAdminUsers = safeUsers.filter(u => !u.role || u.role === 'resident' || u.role !== 'admin');
 
+          // ATURAN MUTLAK: Pengguna baru ditaruh di paling atas (berdasarkan urutan pendaftaran / ID terbaru)
           const sortedAdminUsers = [...nonAdminUsers].sort((a, b) => {
             const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
             const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1918,6 +1742,7 @@ function AppContent() {
             return (Number(b.id) || 0) - (Number(a.id) || 0);
           });
 
+          // Filter Pencarian Nama / Username / Telepon
           const searchedUsers = sortedAdminUsers.filter(u => {
             const q = userSearchQuery.toLowerCase().trim();
             if (q) {
@@ -1939,78 +1764,80 @@ function AppContent() {
           const activeAccessCount = nonAdminUsers.filter(u => Boolean(u.is_fingerprint_active)).length;
 
           return (
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
+            <div className="space-y-6">
+              {/* Header Panel Kelola Akun */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-800 flex items-center">
-                    <Users className="mr-2 text-blue-600" size={22} /> Kelola Akun Penghuni
+                  <h3 className="text-xl font-black text-slate-800 flex items-center">
+                    <Users className="mr-2 text-blue-600" size={24} /> Kelola User & Akun Penghuni
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Penetapan kamar, kontrol sidik jari, dan edit akun anak kos
+                    Manajemen data akun, penetapan kamar, status akses sidik jari, dan kontrol penuh pengguna
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setAdminUserModal({ type: 'add', data: {} })}
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center shadow-md shadow-blue-600/20 transition cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
                 >
-                  <UserPlus size={14} className="mr-1.5" /> Tambah Pengguna Baru
+                  <UserPlus size={15} className="mr-1.5" /> Tambah Pengguna Baru
                 </button>
               </div>
 
-              {/* 4 Mini Kartu Ringkasan */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Users size={16} />
+              {/* 4 Mini Kartu Ringkasan Akun */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Users size={18} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total User</span>
-                    <span className="text-base font-black text-slate-800">{totalUserCount}</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total User</span>
+                    <span className="text-lg font-black text-slate-800">{totalUserCount}</span>
                   </div>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-amber-200/80 bg-amber-50/20 shadow-xs flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
-                    <Sparkles size={16} />
+                <div className="bg-white p-4 rounded-xl border border-amber-200/80 bg-amber-50/20 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={18} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Belum Kamar</span>
-                    <span className="text-base font-black text-amber-600">{noRoomCount} akun</span>
+                    <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Belum Ada Kamar</span>
+                    <span className="text-lg font-black text-amber-600">{noRoomCount} akun</span>
                   </div>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                    <DoorOpen size={16} />
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <DoorOpen size={18} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Punya Kamar</span>
-                    <span className="text-base font-black text-slate-800">{hasRoomCount}</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Punya Kamar</span>
+                    <span className="text-lg font-black text-slate-800">{hasRoomCount} akun</span>
                   </div>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck size={16} />
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck size={18} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Akses Aktif</span>
-                    <span className="text-base font-black text-slate-800">{activeAccessCount}</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Akses Aktif</span>
+                    <span className="text-lg font-black text-slate-800">{activeAccessCount} akun</span>
                   </div>
                 </div>
               </div>
 
-              {/* Search & Tab Filter */}
-              <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5">
-                <div className="relative flex-1">
-                  <Search size={15} className="absolute left-3.5 top-3 text-slate-400" />
+              {/* Bilah Pencarian Nama & Filter Tab Status */}
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                {/* Kolom Pencarian Berdasarkan Nama / Username */}
+                <div className="relative flex-1 max-w-md">
+                  <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
                   <input
                     type="text"
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
-                    placeholder="Cari nama, username, atau nomor WA..."
-                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 transition"
+                    placeholder="Cari berdasarkan nama, username, atau WhatsApp..."
+                    className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 transition"
                   />
                   {userSearchQuery && (
                     <button
@@ -2022,133 +1849,37 @@ function AppContent() {
                   )}
                 </div>
 
-                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto whitespace-nowrap">
+                {/* Sub Tab Filter */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
                   <button
                     onClick={() => setUserFilterTab('all')}
-                    className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${userFilterTab === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     Semua ({nonAdminUsers.length})
                   </button>
                   <button
                     onClick={() => setUserFilterTab('no_room')}
-                    className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${userFilterTab === 'no_room' ? 'bg-white text-amber-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'no_room' ? 'bg-white text-amber-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    Belum Kamar ({noRoomCount})
+                    Belum Pilih Kamar ({noRoomCount})
                   </button>
                   <button
                     onClick={() => setUserFilterTab('has_room')}
-                    className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${userFilterTab === 'has_room' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'has_room' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     Punya Kamar ({hasRoomCount})
+                  </button>
+                  <button
+                    onClick={() => setUserFilterTab('active')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'active' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Akses Aktif ({activeAccessCount})
                   </button>
                 </div>
               </div>
 
-              {/* Mobile Card User */}
-              <div className="grid grid-cols-1 gap-3 md:hidden">
-                {searchedUsers.map((u) => {
-                  const room = safeRooms.find(r => r.id === u.room_id || String(r.number).trim() === String(u.room_id).trim());
-                  const isNewUser = !u.room_id;
-                  const cleanPhone = (u.phone || '').replace(/\D/g, '');
-                  const waLink = cleanPhone ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`) : null;
-
-                  return (
-                    <div key={u.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
-                            {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-800 text-sm leading-tight">{u.name}</span>
-                              {isNewUser && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200">
-                                  Baru
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-400 font-mono">@{u.username}</span>
-                          </div>
-                        </div>
-
-                        {u.is_fingerprint_active ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            Terkunci
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="p-2.5 bg-slate-50 rounded-xl space-y-1.5 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 text-[11px]">Kamar:</span>
-                          {room ? (
-                            <span className="font-bold text-blue-700">Kamar {room.number}</span>
-                          ) : (
-                            <span className="text-amber-600 font-semibold text-[11px]">Belum Pilih Kamar</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 text-[11px]">WhatsApp:</span>
-                          {u.phone ? (
-                            <a href={waLink || '#'} target="_blank" rel="noreferrer" className="text-emerald-700 font-semibold underline">
-                              {u.phone}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 italic text-[11px]">-</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-400">
-                          <span>Terdaftar:</span>
-                          <span>{formatDateSafe(u.created_at)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleUserAccess(u)}
-                          className={`py-2 px-1 rounded-xl text-[11px] font-bold border transition text-center ${
-                            u.is_fingerprint_active
-                              ? 'bg-rose-50 text-rose-600 border-rose-200'
-                              : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                          }`}
-                        >
-                          {u.is_fingerprint_active ? 'Kunci Pintu' : 'Buka Pintu'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdminUserModal({ type: 'edit', data: u })}
-                          className="py-2 px-1 rounded-xl text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 text-center"
-                        >
-                          Edit Profil
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteUserModal(u)}
-                          className="py-2 px-1 rounded-xl text-[11px] font-bold bg-slate-100 text-rose-600 border border-slate-200 text-center"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {searchedUsers.length === 0 && (
-                  <div className="bg-white p-8 rounded-2xl border text-center text-slate-400">
-                    <Users size={36} className="mx-auto text-slate-300 mb-2" />
-                    <p className="font-bold text-slate-700 text-sm">Pengguna Tidak Ditemukan</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Desktop Table User */}
-              <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              {/* Tabel Pengguna Model Admin Profesional */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200">
@@ -2173,6 +1904,7 @@ function AppContent() {
                           <tr key={u.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-3.5 text-center text-slate-400 font-mono">{idx + 1}</td>
 
+                            {/* Nama & Username */}
                             <td className="p-3.5">
                               <div className="flex items-center space-x-3">
                                 <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
@@ -2182,7 +1914,7 @@ function AppContent() {
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-bold text-slate-800 text-sm">{u.name}</span>
                                     {isNewUser && (
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center">
                                         Baru
                                       </span>
                                     )}
@@ -2192,6 +1924,7 @@ function AppContent() {
                               </div>
                             </td>
 
+                            {/* Kontak & WhatsApp */}
                             <td className="p-3.5">
                               <div className="space-y-0.5">
                                 {u.phone ? (
@@ -2200,6 +1933,7 @@ function AppContent() {
                                     target="_blank"
                                     rel="noreferrer"
                                     className="font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+                                    title="Klik untuk chat WhatsApp"
                                   >
                                     <Phone size={12} className="text-emerald-500" />
                                     <span>{u.phone}</span>
@@ -2211,6 +1945,7 @@ function AppContent() {
                               </div>
                             </td>
 
+                            {/* Kamar Ditempati */}
                             <td className="p-3.5">
                               {room ? (
                                 <div className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
@@ -2225,6 +1960,7 @@ function AppContent() {
                               )}
                             </td>
 
+                            {/* Status Akses & Sidik Jari */}
                             <td className="p-3.5">
                               <div className="space-y-1">
                                 {u.is_fingerprint_active ? (
@@ -2242,12 +1978,15 @@ function AppContent() {
                               </div>
                             </td>
 
+                            {/* Tanggal Terdaftar */}
                             <td className="p-3.5 text-slate-500 text-[11px]">
                               {formatDateSafe(u.created_at)}
                             </td>
 
+                            {/* Aksi Pengelola */}
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1.5">
+                                {/* Toggle Akses Cepat */}
                                 <button
                                   type="button"
                                   onClick={() => handleToggleUserAccess(u)}
@@ -2257,25 +1996,27 @@ function AppContent() {
                                       ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
                                       : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
                                   }`}
-                                  title={u.is_fingerprint_active ? 'Kunci Akses Pintu' : 'Buka Akses Pintu'}
+                                  title={u.is_fingerprint_active ? 'Kunci Akses Pintu' : 'Buka & Aktifkan Akses Pintu'}
                                 >
                                   {u.is_fingerprint_active ? <Lock size={14} /> : <Unlock size={14} />}
                                 </button>
 
+                                {/* Edit Profil Akun */}
                                 <button
                                   type="button"
                                   onClick={() => setAdminUserModal({ type: 'edit', data: u })}
                                   className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
-                                  title="Edit Akun"
+                                  title="Edit Akun & Kamar"
                                 >
                                   <Edit size={14} />
                                 </button>
 
+                                {/* Hapus Akun */}
                                 <button
                                   type="button"
                                   onClick={() => setDeleteUserModal(u)}
                                   className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
-                                  title="Hapus Akun"
+                                  title="Hapus Akun Pengguna"
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -2284,6 +2025,26 @@ function AppContent() {
                           </tr>
                         );
                       })}
+
+                      {searchedUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-10 text-center text-slate-400">
+                            <Users size={40} className="mx-auto text-slate-300 mb-2" />
+                            <p className="font-bold text-slate-700 text-sm">Tidak Ada Pengguna Ditemukan</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {userSearchQuery ? `Tidak ada nama yang cocok dengan "${userSearchQuery}"` : 'Belum ada pengguna terdaftar'}
+                            </p>
+                            {userSearchQuery && (
+                              <button
+                                onClick={() => setUserSearchQuery('')}
+                                className="mt-3 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition cursor-pointer"
+                              >
+                                Bersihkan Pencarian
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2292,149 +2053,146 @@ function AppContent() {
           );
         })()}
 
-        {/* VIEW: LAPORAN KEUANGAN LENGKAP & EKSPOR CETAK/PDF */}
+        {/* VIEW: LAPORAN KEUANGAN */}
         {view === 'admin_reports' && (
-          <div className="space-y-4 md:space-y-6 printable-report">
-            {/* KOP DOKUMEN CETAK RESMI (HANYA MUNCUL DI PDF/PRINT) */}
-            <div className="hidden print:block mb-6 border-b-2 border-slate-800 pb-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">SMARTKOS MANAGEMENT</h1>
-                  <p className="text-xs text-slate-600 font-bold">Laporan Rekapitulasi Arus Kas & Keuangan Hunian Kos</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Periode: <strong>{formatDateSafe(appliedStartDate)}</strong> s/d <strong>{formatDateSafe(appliedEndDate)}</strong>
-                  </p>
-                </div>
-                <div className="text-right text-xs text-slate-600">
-                  <p>Tanggal Cetak: <strong>{new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></p>
-                  <p className="font-mono text-[10px] mt-1 text-slate-400">Doc Ref: SK-REP-{new Date().getFullYear()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Header di Layar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 print:hidden">
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-800">Laporan Keuangan</h2>
-                <p className="text-xs text-slate-500 font-medium">Ringkasan pemasukan & pengeluaran kos</p>
+                <h2 className="text-2xl font-black text-slate-800">Laporan Keuangan</h2>
+                <p className="text-xs text-slate-500 font-medium">Ringkasan pemasukan & pengeluaran berdasarkan rentang tanggal</p>
               </div>
             </div>
 
-            {/* Filter Rentang Tanggal & Tombol Aksi */}
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 print:hidden">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase mr-1.5">DARI</span>
+            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 print:hidden">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2">DARI</span>
                   <input 
                     type="date" 
                     value={reportStartDate} 
                     onChange={(e) => setReportStartDate(e.target.value)}
-                    className="bg-transparent font-semibold text-slate-700 outline-none text-xs"
+                    className="bg-transparent font-semibold text-slate-700 outline-none"
                   />
                 </div>
-                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase mr-1.5">SAMPAI</span>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2">SAMPAI</span>
                   <input 
                     type="date" 
                     value={reportEndDate} 
                     onChange={(e) => setReportEndDate(e.target.value)}
-                    className="bg-transparent font-semibold text-slate-700 outline-none text-xs"
+                    className="bg-transparent font-semibold text-slate-700 outline-none"
                   />
                 </div>
                 <button 
                   onClick={handleApplyReportFilter}
-                  className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-3.5 py-2 rounded-xl font-bold flex items-center transition shadow-sm cursor-pointer text-xs"
+                  className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-5 py-2.5 rounded-xl font-bold flex items-center transition shadow-sm cursor-pointer"
                 >
-                  <Search size={13} className="mr-1" /> Terapkan
+                  <Search size={14} className="mr-1.5" /> Terapkan
                 </button>
               </div>
 
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleExportExcel}
-                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition cursor-pointer"
                 >
-                  <FileSpreadsheet size={14} className="mr-1.5" /> Export Excel
+                  <FileSpreadsheet size={15} className="mr-2" /> Export Excel (.xls)
                 </button>
                 <button 
                   onClick={handlePrintReport}
-                  className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-2 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition cursor-pointer"
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition cursor-pointer"
                 >
-                  <Printer size={14} className="mr-1.5 text-slate-500" /> Cetak
+                  <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
                 </button>
               </div>
             </div>
 
-            {/* 4 KARTU METRIK RINGKASAN (TETAP DICETAK PADA PDF) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-sky-50 flex items-center justify-center text-sky-500">
-                    <TrendingUp size={13} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-500">
+                    <TrendingUp size={15} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">PEMASUKAN</span>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PEMASUKAN
+                  </span>
                 </div>
                 <div>
-                  <div className="text-base sm:text-2xl font-black text-slate-800 tracking-tight mb-0.5">
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
                     Rp {reportPemasukan.toLocaleString('id-ID')}
                   </div>
-                  <span className="text-[10px] text-slate-400">{filteredReportBills.length} lunas</span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {filteredReportBills.length} pembayaran lunas
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500">
-                    <TrendingDown size={13} />
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500">
+                    <TrendingDown size={15} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">PENGELUARAN</span>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PENGELUARAN
+                  </span>
                 </div>
                 <div>
-                  <div className="text-base sm:text-2xl font-black text-slate-800 tracking-tight mb-0.5">
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
                     Rp {reportPengeluaran.toLocaleString('id-ID')}
                   </div>
-                  <span className="text-[10px] text-slate-400">{filteredReportExpenses.length} item</span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {filteredReportExpenses.length} item pengeluaran
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                    <Wallet size={13} />
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Wallet size={15} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">UANG MUKA</span>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    UANG MUKA
+                  </span>
                 </div>
                 <div>
-                  <div className="text-base sm:text-2xl font-black text-slate-800 tracking-tight mb-0.5">Rp 0</div>
-                  <span className="text-[10px] text-slate-400">0 penyewa</span>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp 0
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    0 penyewa
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${reportKeuntunganBersih >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    <Receipt size={13} />
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${reportKeuntunganBersih >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    <Receipt size={15} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">LABA BERSIH</span>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    KEUNTUNGAN BERSIH
+                  </span>
                 </div>
                 <div>
-                  <div className={`text-base sm:text-2xl font-black tracking-tight mb-0.5 ${reportKeuntunganBersih < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  <div className={`text-2xl font-black tracking-tight mb-1 ${reportKeuntunganBersih < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {reportKeuntunganBersih < 0 ? `-Rp ${Math.abs(reportKeuntunganBersih).toLocaleString('id-ID')}` : `Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}`}
                   </div>
-                  <span className="text-[10px] text-slate-400">Saldo kumulatif</span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {formatDateSafe(appliedStartDate)} – {formatDateSafe(appliedEndDate)}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* GRAFIK TREN 6 BULAN TERAKHIR (LENGKAP DI LAYAR) */}
-            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
-              <div className="mb-4">
-                <h3 className="font-bold text-sm sm:text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
+            {/* Grafik Tren 6 Bulan */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
+              <div className="mb-6">
+                <h3 className="font-bold text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Pemasukan, pengeluaran, dan keuntungan bersih per bulan</p>
               </div>
 
-              {/* Batang Diagram */}
-              <div className="h-60 flex items-end justify-between gap-2 sm:gap-6 pt-6 pb-2 border-b border-slate-100">
+              <div className="h-64 flex items-end justify-between gap-2 sm:gap-6 pt-6 pb-2 border-b border-slate-100">
                 {trendData.map((item, idx) => {
                   const incomeHeight = Math.max(6, Math.min(100, Math.round((item.income / maxTrendVal) * 100)));
                   const expenseHeight = Math.max(6, Math.min(100, Math.round((item.expense / maxTrendVal) * 100)));
@@ -2444,22 +2202,22 @@ function AppContent() {
                     <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
                       <div className="w-full flex items-end justify-center gap-1 sm:gap-2 h-full">
                         <div 
-                          className="w-2.5 sm:w-5 bg-sky-400 rounded-t-md transition-all hover:bg-sky-500 relative" 
+                          className="w-3 sm:w-5 bg-sky-400 rounded-t-md transition-all hover:bg-sky-500 relative" 
                           style={{ height: `${incomeHeight}%` }}
                           title={`Pemasukan: Rp ${item.income.toLocaleString('id-ID')}`}
                         ></div>
                         <div 
-                          className="w-2.5 sm:w-5 bg-rose-400 rounded-t-md transition-all hover:bg-rose-500 relative" 
+                          className="w-3 sm:w-5 bg-rose-400 rounded-t-md transition-all hover:bg-rose-500 relative" 
                           style={{ height: `${expenseHeight}%` }}
                           title={`Pengeluaran: Rp ${item.expense.toLocaleString('id-ID')}`}
                         ></div>
                         <div 
-                          className="w-2.5 sm:w-5 bg-[#2c3e50] rounded-t-md transition-all hover:bg-slate-900 relative" 
+                          className="w-3 sm:w-5 bg-[#2c3e50] rounded-t-md transition-all hover:bg-slate-900 relative" 
                           style={{ height: `${profitHeight}%` }}
                           title={`Keuntungan: Rp ${item.profit.toLocaleString('id-ID')}`}
                         ></div>
                       </div>
-                      <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-2 whitespace-nowrap">
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-3 whitespace-nowrap">
                         {item.label}
                       </span>
                     </div>
@@ -2467,39 +2225,44 @@ function AppContent() {
                 })}
               </div>
 
-              {/* Legend Grafik */}
-              <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mt-3 pt-1 text-xs font-semibold text-slate-600">
-                <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-center gap-6 mt-4 pt-2 text-xs font-semibold text-slate-600">
+                <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-xs bg-[#2c3e50]"></span>
                   <span>Keuntungan</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-xs bg-sky-400"></span>
                   <span>Pemasukan</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-xs bg-rose-400"></span>
                   <span>Pengeluaran</span>
                 </div>
               </div>
             </div>
 
-            {/* TABEL BUKU KAS MUTASI KEUANGAN (TETAP TAMPIL DI LAYAR & TERCETAK RESMI DI PDF) */}
-            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-              <h4 className="font-black text-slate-800 text-sm sm:text-base mb-3 flex items-center justify-between">
-                <span className="flex items-center">
-                  <FileSpreadsheet className="mr-2 text-emerald-600 print:hidden" size={18} /> Buku Kas Mutasi Keuangan
-                </span>
-                <span className="text-xs font-normal text-slate-400 print:hidden">
-                  {combinedReportTransactions.length} transaksi
-                </span>
-              </h4>
+            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                <div>
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <FileSpreadsheet className="mr-2 text-emerald-600" size={18} /> Buku Kas Mutasi Keuangan (Pratinjau Spreadsheet)
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Rincian mutasi kas lengkap dengan channel pembayaran anak kos</p>
+                </div>
+                <button
+                  onClick={handleExportExcel}
+                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center transition cursor-pointer"
+                >
+                  <Download size={14} className="mr-1.5" /> Unduh .XLS
+                </button>
+              </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 print:border-slate-800">
-                <table className="w-full text-left text-xs whitespace-nowrap print:border-collapse">
-                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 print:bg-slate-200 print:border-slate-800">
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                     <tr>
-                      <th className="p-3 text-center w-10">No</th>
+                      <th className="p-3 text-center w-12">No</th>
                       <th className="p-3">Tanggal</th>
                       <th className="p-3 text-center">Tipe</th>
                       <th className="p-3">Kamar / Kategori</th>
@@ -2509,11 +2272,11 @@ function AppContent() {
                       <th className="p-3 text-right">Pengeluaran</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 print:divide-slate-300">
+                  <tbody className="divide-y divide-slate-100">
                     {combinedReportTransactions.map((t, idx) => (
                       <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                        <td className="p-3 text-center text-slate-400 font-mono print:text-black">{idx + 1}</td>
-                        <td className="p-3 text-slate-600 print:text-black">{formatDateSafe(t.date)}</td>
+                        <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="p-3 text-slate-600">{formatDateSafe(t.date)}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             t.type === 'Pemasukan' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -2521,17 +2284,20 @@ function AppContent() {
                             {t.type}
                           </span>
                         </td>
-                        <td className="p-3 font-semibold text-slate-700 print:text-black">{t.category}</td>
-                        <td className="p-3 text-slate-600 print:text-black">{t.description}</td>
-                        <td className="p-3 text-center">{renderPaymentBadge(t.paymentMethod)}</td>
-                        <td className="p-3 text-right font-black text-sky-600 font-mono print:text-black">
+                        <td className="p-3 font-semibold text-slate-700">{t.category}</td>
+                        <td className="p-3 text-slate-600">{t.description}</td>
+                        <td className="p-3 text-center">
+                          {renderPaymentBadge(t.paymentMethod)}
+                        </td>
+                        <td className="p-3 text-right font-black text-sky-600 font-mono">
                           {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="p-3 text-right font-black text-rose-600 font-mono print:text-black">
+                        <td className="p-3 text-right font-black text-rose-600 font-mono">
                           {t.expense > 0 ? `Rp ${t.expense.toLocaleString('id-ID')}` : '-'}
                         </td>
                       </tr>
                     ))}
+
                     {combinedReportTransactions.length === 0 && (
                       <tr>
                         <td colSpan={8} className="p-8 text-center text-slate-400">
@@ -2540,102 +2306,117 @@ function AppContent() {
                       </tr>
                     )}
                   </tbody>
+                  {combinedReportTransactions.length > 0 && (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-800">
+                      <tr>
+                        <td colSpan={6} className="p-3 text-right uppercase tracking-wider text-[11px]">Total Kas:</td>
+                        <td className="p-3 text-right font-black text-sky-600 font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                        <td className="p-3 text-right font-black text-rose-600 font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                      </tr>
+                      <tr className="bg-slate-100/70 border-t border-slate-200">
+                        <td colSpan={6} className="p-3 text-right uppercase tracking-wider text-[11px]">Keuntungan Bersih:</td>
+                        <td colSpan={2} className={`p-3 text-right font-black text-sm font-mono ${reportKeuntunganBersih >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
 
-            {/* TABEL KOMPARASI: PEMASUKAN SEWA VS PENGELUARAN (LENGKAP DI LAYAR) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 print:hidden">
-              {/* Kolom Kiri: Pemasukan Sewa */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
-                  <span>Pemasukan Sewa (Lunas)</span>
-                  <span className="text-xs text-slate-400 font-normal">{filteredReportBills.length} data</span>
-                </h4>
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                      <tr>
-                        <th className="p-2.5">Tanggal</th>
-                        <th className="p-2.5">Penghuni</th>
-                        <th className="p-2.5">Kamar</th>
-                        <th className="p-2.5 text-right">Nominal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredReportBills.map(b => {
-                        const user = safeUsers.find(u => u.id === b.user_id);
-                        const room = safeRooms.find(r => r.id === user?.room_id);
-                        return (
-                          <tr key={b.id} className="hover:bg-slate-50/60">
-                            <td className="p-2.5 text-slate-500">{formatDateSafe(b.created_at || b.due_date)}</td>
-                            <td className="p-2.5 font-bold text-slate-800">{user?.name || `User #${b.user_id}`}</td>
-                            <td className="p-2.5 text-slate-600">{room ? `Kmr ${room.number}` : '-'}</td>
-                            <td className="p-2.5 font-black text-sky-600 text-right">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
-                          </tr>
-                        );
-                      })}
-                      {filteredReportBills.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pemasukan pada rentang tanggal ini.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+            {/* FORMAT CETAK DOKUMEN RESMI (HANYA SAAT CETAK / PDF) */}
+            <div className="hidden print:block print-document-container p-2 text-black">
+              <div className="text-center border-b-2 border-black pb-4 mb-5">
+                <h1 className="text-2xl font-black uppercase tracking-wider">SMARTKOS MANAGEMENT SYSTEM</h1>
+                <h2 className="text-base font-bold uppercase text-slate-700 mt-1">Laporan Rekapitulasi Arus Kas & Keuangan</h2>
+                <div className="text-xs text-slate-600 mt-1 flex justify-center gap-4">
+                  <span><strong>Periode:</strong> {formatDateSafe(appliedStartDate)} s/d {formatDateSafe(appliedEndDate)}</span>
+                  <span>·</span>
+                  <span><strong>Dicetak Pada:</strong> {formatDateSafe(new Date())}</span>
                 </div>
               </div>
 
-              {/* Kolom Kanan: Pengeluaran */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
-                  <span>Rincian Pengeluaran</span>
-                  <span className="text-xs text-slate-400 font-normal">{filteredReportExpenses.length} data</span>
-                </h4>
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                      <tr>
-                        <th className="p-2.5">Tanggal</th>
-                        <th className="p-2.5">Keperluan</th>
-                        <th className="p-2.5">Kategori</th>
-                        <th className="p-2.5 text-right">Nominal</th>
+              <table className="w-full border-collapse border border-black mb-6 text-xs">
+                <thead>
+                  <tr className="bg-slate-200 text-black">
+                    <th className="border border-black p-2.5 text-center font-bold">TOTAL PEMASUKAN</th>
+                    <th className="border border-black p-2.5 text-center font-bold">TOTAL PENGELUARAN</th>
+                    <th className="border border-black p-2.5 text-center font-bold">KEUNTUNGAN BERSIH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="text-center text-sm font-black">
+                    <td className="border border-black p-3 text-sky-900">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                    <td className="border border-black p-3 text-rose-900">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                    <td className="border border-black p-3 text-emerald-900">Rp {reportKeuntunganBersih.toLocaleString('id-ID')}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="mb-8">
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-2">Rincian Mutasi Transaksi (Buku Kas Besar):</h3>
+                <table className="w-full border-collapse border border-black text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-200 text-black">
+                      <th className="border border-black p-2 text-center w-10">No</th>
+                      <th className="border border-black p-2 text-center w-24">Tanggal</th>
+                      <th className="border border-black p-2 text-center w-20">Tipe</th>
+                      <th className="border border-black p-2 text-left w-32">Kamar / Kategori</th>
+                      <th className="border border-black p-2 text-left">Keterangan / Penghuni</th>
+                      <th className="border border-black p-2 text-center w-24">Metode Bayar</th>
+                      <th className="border border-black p-2 text-right w-24">Pemasukan</th>
+                      <th className="border border-black p-2 text-right w-24">Pengeluaran</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {combinedReportTransactions.map((t, idx) => (
+                      <tr key={t.id} className="border-b border-black">
+                        <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
+                        <td className="border border-black p-1.5 text-center">{t.date}</td>
+                        <td className="border border-black p-1.5 text-center font-bold">{t.type}</td>
+                        <td className="border border-black p-1.5">{t.category}</td>
+                        <td className="border border-black p-1.5">{t.description}</td>
+                        <td className="border border-black p-1.5 text-center font-semibold">{t.paymentMethod}</td>
+                        <td className="border border-black p-1.5 text-right font-mono font-semibold">
+                          {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
+                        </td>
+                        <td className="border border-black p-1.5 text-right font-mono font-semibold">
+                          {t.expense > 0 ? `Rp ${t.expense.toLocaleString('id-ID')}` : '-'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredReportExpenses.map(e => (
-                        <tr key={e.id} className="hover:bg-slate-50/60">
-                          <td className="p-2.5 text-slate-500">{formatDateSafe(e.expense_date || e.created_at)}</td>
-                          <td className="p-2.5 font-bold text-slate-800">{e.title}</td>
-                          <td className="p-2.5 text-slate-600"><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 font-medium">{e.category}</span></td>
-                          <td className="p-2.5 font-black text-rose-600 text-right">Rp {Number(e.nominal).toLocaleString('id-ID')}</td>
-                        </tr>
-                      ))}
-                      {filteredReportExpenses.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pengeluaran pada rentang tanggal ini.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+
+                    {combinedReportTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="border border-black p-4 text-center">
+                          Tidak ada catatan transaksi pada periode yang dipilih.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 font-bold">
+                      <td colSpan={6} className="border border-black p-2 text-right uppercase">TOTAL KESELURUHAN:</td>
+                      <td className="border border-black p-2 text-right font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
+                      <td className="border border-black p-2 text-right font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
+                    </tr>
+                    <tr className="bg-slate-200 font-black text-xs">
+                      <td colSpan={6} className="border border-black p-2.5 text-right uppercase">SALDO AKHIR (LABA BERSIH):</td>
+                      <td colSpan={2} className="border border-black p-2.5 text-right font-mono text-sm">
+                        Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-            </div>
 
-            {/* KOLOM TANDA TANGAN RESMI (HANYA MUNCUL DI PDF/PRINT) */}
-            <div className="hidden print:block pt-10">
-              <div className="flex justify-between items-start text-xs text-slate-800">
-                <div className="text-center w-48">
-                  <p>Mengetahui,</p>
-                  <p className="font-bold mt-1">Pemilik Kos</p>
-                  <div className="h-16"></div>
-                  <p className="border-b border-slate-800 font-bold">( ........................................ )</p>
-                </div>
-
-                <div className="text-center w-48">
-                  <p>Petugas Administrasi,</p>
-                  <p className="font-bold mt-1">Pengelola SmartKos</p>
-                  <div className="h-16"></div>
-                  <p className="border-b border-slate-800 font-bold">( {currentUser?.name || 'Administrator'} )</p>
+              <div className="flex justify-end pt-4">
+                <div className="text-center w-56 text-xs">
+                  <p className="text-slate-700">Pengelola SmartKos,</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold border-b border-black pb-1 uppercase">{currentUser?.name || 'Administrator'}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Penanggung Jawab Keuangan</p>
                 </div>
               </div>
             </div>
@@ -2644,108 +2425,200 @@ function AppContent() {
 
         {/* VIEW: LOG PINTU */}
         {view === 'admin_logs' && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-              <h3 className="font-bold text-base sm:text-lg flex items-center">
-                <FileText className="mr-2 text-blue-600"/> Log Akses Pintu (Fingerprint)
-              </h3>
-              <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-100 flex items-center shadow-xs cursor-pointer">
-                <Trash2 size={13} className="mr-1"/> Kosongkan Log
-              </button>
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+               <h3 className="font-bold text-lg flex items-center"><FileText className="mr-2 text-blue-600"/> Log Buka Pintu (Fingerprint)</h3>
+               <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm cursor-pointer"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
             </div>
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-slate-100 border-b">
-                <tr><th className="p-3">Waktu</th><th className="p-3">User</th><th className="p-3">Pesan Sistem</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {safeLogs.map(l => (
-                  <tr key={l.id} className="hover:bg-slate-50">
-                    <td className="p-3 whitespace-nowrap text-slate-500">{new Date(l.timestamp).toLocaleString()}</td>
-                    <td className="p-3 font-bold text-slate-800">{safeUsers.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
-                    <td className="p-3 text-slate-600">{l.action}</td>
-                  </tr>
-                ))}
-              </tbody>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
+                <tbody className="divide-y">
+                  {safeLogs.map(l => (
+                    <tr key={l.id} className="hover:bg-slate-50">
+                      <td className="p-4 whitespace-nowrap">{new Date(l.timestamp).toLocaleString()}</td>
+                      <td className="p-4 font-bold">{safeUsers.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
+                      <td className="p-4 text-slate-600">{l.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
             </table>
           </div>
         )}
 
         {/* VIEW: PENGATURAN */}
         {view === 'admin_settings' && (
-          <div className="space-y-4 max-w-4xl">
-            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-6 max-w-4xl">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-800 flex items-center">
-                    <Settings className="mr-2 text-blue-600" size={22}/> Pengaturan Sistem
+                  <h3 className="text-xl font-black text-slate-800 flex items-center">
+                    <Settings className="mr-2.5 text-blue-600" size={24}/> Pengaturan Sistem & Integrasi
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">TokoPay (QRIS), Perangkat IoT, dan Fonnte WhatsApp</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola gerbang pembayaran QRIS, koneksi perangkat IoT, dan gateway WhatsApp Fonnte
+                  </p>
                 </div>
 
-                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto w-full sm:w-auto">
+                {/* Sub Tab Switcher 3 Tombol */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
                   <button 
                     onClick={() => setSettingsTab('tokopay')} 
-                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg flex items-center justify-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    TokoPay
+                    <ShieldCheck size={14} className="mr-1.5" /> TokoPay (QRIS)
                   </button>
                   <button 
                     onClick={() => setSettingsTab('devices')} 
-                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg flex items-center justify-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    Perangkat
+                    <Cpu size={14} className="mr-1.5" /> Perangkat Pintu
                   </button>
                   <button 
                     onClick={() => setSettingsTab('fonnte')} 
-                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg flex items-center justify-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'fonnte' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-3 py-2 rounded-lg flex items-center transition cursor-pointer whitespace-nowrap ${settingsTab === 'fonnte' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    WhatsApp (Fonnte)
+                    <MessageSquare size={14} className="mr-1.5 text-emerald-600" /> WhatsApp (Fonnte)
                   </button>
                 </div>
               </div>
             </div>
 
             {settingsTab === 'tokopay' && (
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className="border-b pb-4 mb-6">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <CreditCard className="mr-2 text-blue-600" size={18} /> Integrasi Pembayaran QRIS Otomatis
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Masukkan kredensial akun TokoPay Anda agar invoice tagihan anak kos otomatis menghasilkan QRIS real-time.
+                  </p>
+                </div>
+
                 <form onSubmit={handleSaveSettings} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Merchant ID TokoPay</label>
-                    <input type="text" name="merchant_id" defaultValue={settings.tokopay_merchant_id} placeholder="M240101XXXXX" className="w-full p-2.5 sm:p-3 border rounded-xl bg-slate-50 text-xs sm:text-sm font-mono outline-none" required />
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Merchant ID TokoPay
+                    </label>
+                    <input 
+                      type="text" 
+                      name="merchant_id" 
+                      defaultValue={settings.tokopay_merchant_id} 
+                      placeholder="Contoh: M240101XXXXX"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Secret Key TokoPay</label>
-                    <input type="password" name="secret_key" defaultValue={settings.tokopay_secret_key} placeholder="Secret Key" className="w-full p-2.5 sm:p-3 border rounded-xl bg-slate-50 text-xs sm:text-sm font-mono outline-none" required />
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Secret Key TokoPay
+                    </label>
+                    <input 
+                      type="password" 
+                      name="secret_key" 
+                      defaultValue={settings.tokopay_secret_key} 
+                      placeholder="Masukkan Secret Key TokoPay"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
                   </div>
-                  <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition cursor-pointer">
-                      Simpan Konfigurasi
+
+                  <div className="pt-4 flex flex-wrap items-center gap-3">
+                    <button 
+                      type="submit" 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
+                    >
+                      <Save size={16} className="mr-2"/> Simpan Konfigurasi TokoPay
                     </button>
-                    <button type="button" onClick={handleTestTokoPay} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm border transition cursor-pointer">
-                      Uji Koneksi
+                    <button 
+                      type="button" 
+                      onClick={handleTestTokoPay} 
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center transition border border-slate-200 cursor-pointer"
+                    >
+                      <RefreshCcw size={15} className="mr-2 text-slate-500"/> Uji Koneksi API
                     </button>
                   </div>
                 </form>
               </div>
             )}
 
+            {/* TAB 3: PENGATURAN WHATSAPP GATEWAY (FONNTE) */}
             {settingsTab === 'fonnte' && (
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <form onSubmit={handleSaveSettings} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Fonnte API Token</label>
-                    <input type="text" name="fonnte_token" defaultValue={(settings as any).fonnte_token || ''} placeholder="Token Fonnte" className="w-full p-2.5 sm:p-3 border rounded-xl bg-slate-50 text-xs sm:text-sm font-mono outline-none" required />
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <div className="border-b pb-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                      <MessageSquare size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-base">
+                        WhatsApp Gateway API (Fonnte)
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Otomasi pengiriman struk lunas seketika & pengingat jatuh tempo tanggal 25
+                      </p>
+                    </div>
                   </div>
-                  <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition cursor-pointer">
-                    Simpan Token Fonnte
-                  </button>
+                </div>
+
+                <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl text-xs text-emerald-800 space-y-2">
+                  <p className="font-bold flex items-center">
+                    <Sparkles size={14} className="mr-1.5 text-emerald-600" /> Cara Kerja WhatsApp Otomatis:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-600 pl-1">
+                    <li><strong>Struk Lunas Otomatis:</strong> Setiap ada pembayaran QRIS yang diverifikasi TokoPay, WhatsApp anak kos langsung menerima rincian invoice resmi.</li>
+                    <li><strong>Pengingat Jatuh Tempo (Tanggal 25):</strong> Admin dapat menekan tombol <em>"Kirim WA"</em> di menu Pembayaran kapan saja untuk mengingatkan penghuni.</li>
+                  </ul>
+                </div>
+
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Fonnte API Token (Device Token)
+                    </label>
+                    <input 
+                      type="text" 
+                      name="fonnte_token" 
+                      defaultValue={(settings as any).fonnte_token || ''} 
+                      placeholder="Masukkan Token Fonnte (Contoh: x8d9@pQz...)"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono" 
+                      required 
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Dapatkan token gratis atau berbayar Anda di menu <em>Device</em> pada dashboard <a href="https://fonnte.com" target="_blank" rel="noreferrer" className="text-emerald-600 underline font-semibold">fonnte.com</a>.
+                    </span>
+                  </div>
+
+                  <div className="pt-2">
+                    <button 
+                      type="submit" 
+                      disabled={isLoading}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                    >
+                      <Save size={16} className="mr-2"/> Simpan Token Fonnte
+                    </button>
+                  </div>
                 </form>
 
-                <div className="pt-3 border-t border-slate-100">
-                  <h5 className="font-bold text-xs text-slate-700 mb-2">Uji Kirim Pesan WhatsApp</h5>
-                  <div className="flex flex-col sm:flex-row items-stretch gap-2 max-w-md">
-                    <input type="tel" value={testWaPhone} onChange={(e) => setTestWaPhone(e.target.value)} placeholder="08123xxxxxx" className="p-2.5 text-xs border rounded-xl bg-slate-50 flex-1 outline-none" />
-                    <button type="button" onClick={handleTestFonnte} disabled={isLoading} className="bg-slate-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer">
-                      <Send size={13} className="mr-1.5" /> Kirim Tes
+                {/* Kotak Pengujian Kirim Pesan */}
+                <div className="pt-4 border-t border-slate-100">
+                  <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-2">
+                    Uji Coba Pengiriman Pesan WhatsApp
+                  </h5>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-md">
+                    <input 
+                      type="tel" 
+                      value={testWaPhone}
+                      onChange={(e) => setTestWaPhone(e.target.value)}
+                      placeholder="Nomor WhatsApp tes (08123...)"
+                      className="p-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-emerald-500 flex-1 font-medium"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={handleTestFonnte}
+                      disabled={isLoading}
+                      className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-xs"
+                    >
+                      <Send size={13} className="mr-1.5" /> Kirim Pesan Tes
                     </button>
                   </div>
                 </div>
@@ -2753,30 +2626,73 @@ function AppContent() {
             )}
 
             {settingsTab === 'devices' && (
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                <div className="border-b pb-4">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <Wifi className="mr-2 text-blue-600" size={18} /> Koneksi Perangkat Fingerprint (IoT)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Atur Device ID perangkat ESP8266 pada masing-masing pintu kamar. Jika menggunakan 1 alat uji coba di meja, cukup gunakan ID default <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">KAMAR-A1</span>.
+                  </p>
+                </div>
+
                 <div className="overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b">
                       <tr>
-                        <th className="p-3">Kamar</th>
-                        <th className="p-3">Device ID (ESP8266)</th>
-                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3.5">Kamar</th>
+                        <th className="p-3.5">Device ID Pintu (ESP8266)</th>
+                        <th className="p-3.5 text-center">Status Hardware</th>
+                        <th className="p-3.5 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {sortedRooms.map(r => (
-                        <tr key={r.id}>
-                          <td className="p-3 font-bold text-slate-800">Kamar {r.number}</td>
-                          <td className="p-3">
-                            <form onSubmit={(e: any) => { e.preventDefault(); handleSaveDevice(r.id, e.target.device_id.value); }} className="flex items-center gap-1.5">
-                              <input type="text" name="device_id" defaultValue={r.device_id || `KAMAR-${r.number}`} className="p-1.5 text-xs border rounded-lg bg-slate-50 font-mono w-28 sm:w-36" />
-                              <button type="submit" className="bg-slate-800 text-white px-2 py-1.5 rounded-lg text-[11px] font-bold">Simpan</button>
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition">
+                          <td className="p-3.5">
+                            <span className="font-black text-slate-800 text-sm block">Kamar {r.number}</span>
+                            <span className="text-[11px] text-slate-400">{r.name}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <form 
+                              onSubmit={(e: any) => { 
+                                e.preventDefault(); 
+                                handleSaveDevice(r.id, e.target.device_id.value); 
+                              }} 
+                              className="flex items-center gap-2 max-w-xs"
+                            >
+                              <input 
+                                type="text" 
+                                name="device_id" 
+                                defaultValue={r.device_id || `KAMAR-${r.number}`} 
+                                placeholder="Ex: KAMAR-201" 
+                                className="p-2 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono outline-none focus:ring-1 focus:ring-blue-500 flex-1" 
+                              />
+                              <button 
+                                type="submit" 
+                                className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                              >
+                                Simpan
+                              </button>
                             </form>
                           </td>
-                          <td className="p-3 text-center">
-                            <button onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)} className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.fingerprint_status ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                          <td className="p-3.5 text-center">
+                            <button 
+                              onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition inline-flex items-center cursor-pointer ${
+                                r.fingerprint_status 
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
+                                  : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${r.fingerprint_status ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                               {r.fingerprint_status ? 'ONLINE' : 'OFFLINE'}
                             </button>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className="text-[11px] text-slate-400">
+                              {r.device_id ? 'Terhubung' : 'Standby'}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -2788,142 +2704,307 @@ function AppContent() {
           </div>
         )}
 
-        {/* MODAL PENGELUARAN */}
+        {/* Modal Catat Pengeluaran Baru */}
         {expenseModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleSaveExpense} className="bg-white p-5 sm:p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
-              <h3 className="font-black text-slate-800 text-base mb-3">Catat Pengeluaran</h3>
-              <div className="space-y-3 mb-4 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Keperluan</label>
-                  <input type="text" name="title" placeholder="Token Listrik Lt 2" className="w-full p-2.5 border rounded-xl bg-slate-50" required />
+            <form onSubmit={handleSaveExpense} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
+                  <Receipt size={24} />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nominal (Rp)</label>
-                  <input type="number" name="nominal" placeholder="250000" className="w-full p-2.5 border rounded-xl bg-slate-50 font-mono font-bold text-rose-600" required />
+                  <h3 className="font-black text-slate-800 text-base">Catat Pengeluaran Baru</h3>
+                  <p className="text-xs text-slate-500">Biaya operasional & pemeliharaan</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Keperluan / Keterangan</label>
+                  <input type="text" name="title" placeholder="Contoh: Token Listrik Lt 2" className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-rose-500" required />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Kategori</label>
-                  <select name="category" className="w-full p-2.5 border rounded-xl bg-slate-50">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nominal (Rp)</label>
+                  <input type="number" name="nominal" placeholder="Contoh: 250000" className="w-full p-2.5 text-sm border rounded-xl font-mono font-bold text-rose-600 bg-slate-50 outline-none focus:ring-2 focus:ring-rose-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Kategori</label>
+                  <select name="category" className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none">
                     <option value="Listrik & Air">Listrik & Air</option>
                     <option value="Internet / WiFi">Internet / WiFi</option>
                     <option value="Kebersihan">Kebersihan</option>
-                    <option value="Perbaikan">Perbaikan</option>
+                    <option value="Perbaikan / Maintenance">Perbaikan / Maintenance</option>
                     <option value="Lainnya">Lainnya</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tanggal</label>
-                  <input type="date" name="expense_date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-2.5 border rounded-xl bg-slate-50" required />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal</label>
+                  <input type="date" name="expense_date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none" required />
                 </div>
               </div>
+
               <div className="flex gap-2">
-                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">Batal</button>
-                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-xs shadow-md">Simpan</button>
+                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 shadow-md cursor-pointer">Simpan</button>
               </div>
             </form>
           </div>
         )}
 
-        {/* MODAL KAMAR */}
+        {/* Modal Kamar */}
         {roomModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleSaveRoom} className="bg-white p-5 sm:p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
-              <h3 className="font-bold text-base mb-3">{roomModal.type === 'add' ? 'Tambah Kamar' : 'Edit Kamar'}</h3>
-              <div className="space-y-3 mb-4 text-xs">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl">
+              <h3 className="font-bold text-lg mb-4">{roomModal.type === 'add' ? 'Tambah Kamar' : 'Edit Kamar'}</h3>
+              <div className="space-y-3 mb-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nomor Kamar</label>
-                  <input type="text" name="number" defaultValue={roomModal.data.number} placeholder="201" className="w-full p-2.5 border rounded-xl bg-slate-50" required />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nomor Kamar</label>
+                  <input type="text" name="number" defaultValue={roomModal.data.number} placeholder="Nomor Kamar (ex: 1, 2, 201)" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 outline-none" required />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tipe Kamar</label>
-                  <input type="text" name="name" defaultValue={roomModal.data.name} placeholder="Standard AC" className="w-full p-2.5 border rounded-xl bg-slate-50" required />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Tipe Kamar</label>
+                  <input type="text" name="name" defaultValue={roomModal.data.name} placeholder="Nama Tipe Kamar" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 outline-none" required />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Harga Sewa (Rp)</label>
-                  <input type="number" name="price" defaultValue={roomModal.data.price} placeholder="750000" className="w-full p-2.5 border rounded-xl bg-slate-50 font-bold text-blue-600" required />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Harga Sewa / Bulan (Rp)</label>
+                  <input type="number" name="price" defaultValue={roomModal.data.price} placeholder="Harga Sewa / Bulan" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 font-bold text-blue-600 outline-none" required />
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setRoomModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">Batal</button>
-                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md">Simpan</button>
+                <button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2.5 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm cursor-pointer">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 p-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 cursor-pointer">Simpan</button>
               </div>
             </form>
           </div>
         )}
-
-        {/* MODAL TAGIHAN */}
+        
+        {/* Modal Tagihan */}
         {billModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleEditBill} className="bg-white p-5 rounded-2xl w-full max-w-sm">
-              <h3 className="font-bold text-base mb-2">Edit Nominal Tagihan</h3>
-              <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded-xl mb-4 text-lg font-bold text-red-600 font-mono" required />
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleEditBill} className="bg-white p-6 rounded-xl w-full max-w-sm">
+              <h3 className="font-bold text-lg mb-2">Edit Nominal Tagihan</h3>
+              <p className="text-sm text-slate-500 mb-4">User ID: {billModal.user_id}</p>
+              <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded mb-4 text-lg font-bold text-red-600" required />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setBillModal(null)} className="flex-1 py-2.5 bg-slate-100 rounded-xl font-bold text-xs">Batal</button>
-                <button type="submit" className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md">Simpan</button>
+                <button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold cursor-pointer">Simpan</button>
               </div>
             </form>
           </div>
         )}
 
-        {/* MODAL EDIT AKUN ADMIN */}
+        {/* Modal Koreksi Metode Pembayaran */}
+        {changeMethodModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <CreditCard size={24} />
+              </div>
+              <h3 className="font-black text-slate-800 text-base mb-1">Koreksi Metode Pembayaran</h3>
+              <p className="text-xs text-slate-500 mb-2">
+                Invoice: <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{changeMethodModal.ref_id}</span>
+              </p>
+              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-4 leading-relaxed font-medium">
+                💡 <strong>Catatan:</strong> Pembayaran QRIS online akan terdeteksi <strong>otomatis</strong> oleh sistem. Menu ini hanya dipakai jika Anda ingin mengubahnya secara manual.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-bold">
+                {[
+                  { label: 'QRIS DANA', badge: 'bg-sky-50 text-sky-700 border-sky-300' },
+                  { label: 'QRIS GoPay', badge: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+                  { label: 'QRIS BCA', badge: 'bg-blue-50 text-blue-700 border-blue-300' },
+                  { label: 'QRIS ShopeePay', badge: 'bg-orange-50 text-orange-700 border-orange-300' },
+                  { label: 'QRIS OVO', badge: 'bg-purple-50 text-purple-700 border-purple-300' },
+                  { label: 'QRIS Mandiri', badge: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
+                  { label: 'QRIS BRI', badge: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
+                  { label: 'Tunai / Manual', badge: 'bg-amber-50 text-amber-700 border-amber-300' }
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => handleChangePaymentMethod(changeMethodModal.id, item.label)}
+                    disabled={isLoading}
+                    className={`p-3 rounded-xl border font-bold transition flex items-center justify-center ${item.badge} hover:shadow-xs hover:scale-[1.02] cursor-pointer`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setChangeMethodModal(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Admin: Tambah / Edit Akun Pengguna */}
         {adminUserModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleSaveAdminUser} className="bg-white p-5 sm:p-6 rounded-2xl w-full max-w-md shadow-2xl border">
-              <h3 className="font-black text-slate-800 text-base mb-3">
-                {adminUserModal.type === 'add' ? 'Tambah Akun Penghuni' : 'Edit Akun Pengguna'}
-              </h3>
-              <div className="space-y-2.5 mb-4 max-h-[60vh] overflow-y-auto pr-1 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
-                  <input type="text" name="name" defaultValue={adminUserModal.data?.name || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium" required />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Username</label>
-                    <input type="text" name="username" defaultValue={adminUserModal.data?.username || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-mono" required />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
-                    <input type="tel" name="phone" defaultValue={adminUserModal.data?.phone || ''} className="w-full p-2.5 border rounded-xl bg-slate-50" />
-                  </div>
+            <form onSubmit={handleSaveAdminUser} className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
+                  {adminUserModal.type === 'add' ? <UserPlus size={24} /> : <Edit size={24} />}
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tetapkan Kamar</label>
-                  <select name="room_id" defaultValue={adminUserModal.data?.room_id || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-semibold">
-                    <option value="">-- Belum Pilih Kamar --</option>
-                    {safeRooms.map(r => (
-                      <option key={r.id} value={r.id}>Kamar {r.number} — {r.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Password {adminUserModal.type === 'edit' && '(Opsional)'}</label>
-                  <input type="password" name="password" placeholder={adminUserModal.type === 'add' ? 'user123' : 'Kosongkan jika tidak diubah'} className="w-full p-2.5 border rounded-xl bg-slate-50" />
+                  <h3 className="font-black text-slate-800 text-base">
+                    {adminUserModal.type === 'add' ? 'Tambah Akun Penghuni Baru' : 'Edit Akun Pengguna'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {adminUserModal.type === 'add' ? 'Daftarkan akun dan tetapkan kamar langsung' : `Mengedit data akun @${adminUserModal.data?.username}`}
+                  </p>
                 </div>
               </div>
+
+              <div className="space-y-3 mb-5 max-h-[65vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap</label>
+                  <input
+                    type="text"
+                    name="name"
+                    defaultValue={adminUserModal.data?.name || ''}
+                    placeholder="Contoh: Rian Pratama"
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Username</label>
+                    <input
+                      type="text"
+                      name="username"
+                      defaultValue={adminUserModal.data?.username || ''}
+                      placeholder="username"
+                      className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      defaultValue={adminUserModal.data?.phone || ''}
+                      placeholder="08123456789"
+                      className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Aktif</label>
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={adminUserModal.data?.email || ''}
+                    placeholder="nama@email.com"
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Alamat Asal / KTP</label>
+                  <textarea
+                    name="address"
+                    defaultValue={adminUserModal.data?.address || ''}
+                    rows={2}
+                    placeholder="Alamat asal lengkap"
+                    className="w-full p-2 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium"
+                  ></textarea>
+                </div>
+
+                {/* Penetapan Kamar */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tetapkan Kamar Hunian</label>
+                  <select
+                    name="room_id"
+                    defaultValue={adminUserModal.data?.room_id || ''}
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Belum Ada Kamar (Pilih Sendiri Nanti) --</option>
+                    {safeRooms.map(r => {
+                      const isOccupiedByOther = r.status === 'occupied' && r.id !== adminUserModal.data?.room_id;
+                      return (
+                        <option key={r.id} value={r.id} disabled={isOccupiedByOther}>
+                          Kamar {r.number} — {r.name} {isOccupiedByOther ? '(Sudah Terisi)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {adminUserModal.type === 'add' ? 'Password Akun' : 'Ganti Password (Opsional)'}
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    placeholder={adminUserModal.type === 'add' ? 'Default: user123' : 'Kosongkan jika tidak ingin diubah'}
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-2">
-                <button type="button" onClick={() => setAdminUserModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">Batal</button>
-                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md">Simpan</button>
+                <button
+                  type="button"
+                  onClick={() => setAdminUserModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  {adminUserModal.type === 'add' ? 'Buat Akun' : 'Simpan Perubahan'}
+                </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* MODAL HAPUS AKUN */}
+        {/* Modal Konfirmasi Hapus Akun Pengguna */}
         {deleteUserModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white p-5 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
-              <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
-                <Trash2 size={24} />
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={28} />
               </div>
               <h3 className="font-black text-slate-800 text-base mb-1">Hapus Pengguna?</h3>
-              <p className="text-xs text-slate-600 mb-4">
-                Hapus akun <strong>{deleteUserModal.name}</strong>? Kamar akan otomatis kosong dan akses sidik jari dicabut.
+              <p className="text-xs text-slate-600 mb-2">
+                Anda akan menghapus akun <strong>{deleteUserModal.name}</strong> (@{deleteUserModal.username}).
               </p>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-700 text-left mb-4 space-y-1">
+                <p>• Kamar yang ditempati akan otomatis menjadi <strong>Kosong</strong> kembali.</p>
+                <p>• Hak akses sidik jari pintu kamar akan otomatis dicabut.</p>
+              </div>
+
               <div className="flex gap-2">
-                <button type="button" onClick={() => setDeleteUserModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">Batal</button>
-                <button type="button" onClick={handleConfirmDeleteUser} disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-xs shadow-md">Ya, Hapus</button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteUserModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteUser}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  Ya, Hapus Akun
+                </button>
               </div>
             </div>
           </div>
@@ -2948,60 +3029,62 @@ function AppContent() {
     const isActive = Boolean(currentUser?.is_fingerprint_active);
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col pb-12 sm:pb-6">
-        <nav className="bg-white shadow-sm border-b px-3.5 sm:px-6 py-3 sm:py-4 flex justify-between items-center sticky top-0 z-20">
-          <div className="font-black text-lg sm:text-xl flex items-center">
-            <Fingerprint className="mr-2 text-blue-600" size={24} /> SmartKos
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        {/* Top Navbar Konsisten untuk Semua Penghuni */}
+        <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+          <div className="font-black text-xl flex items-center">
+            <Fingerprint className="mr-2 text-blue-600" /> SmartKos
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <span className="text-xs text-slate-500 font-medium hidden sm:inline">
               Halo, <strong className="text-slate-800">{currentUser?.name}</strong>
             </span>
             <button 
               onClick={logout} 
-              className="text-red-600 font-bold flex items-center hover:bg-red-50 px-2.5 py-1.5 rounded-xl transition cursor-pointer text-xs"
+              className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-1.5 rounded-xl transition cursor-pointer text-xs md:text-sm"
             >
-              <LogOut size={15} className="mr-1"/> Keluar
+              <LogOut size={16} className="mr-1.5"/> Keluar
             </button>
           </div>
         </nav>
 
-        {/* Tab Navigasi Penghuni */}
-        <div className="bg-white border-b px-2 sm:px-6 flex space-x-1 sm:space-x-6 justify-around sm:justify-center text-xs sm:text-sm font-bold shadow-xs overflow-x-auto">
-           <button onClick={() => setView('resident_dashboard')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
-           <button onClick={() => setView('resident_fingerprint')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
-           <button onClick={() => setView('resident_history')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat</button>
-           <button onClick={() => setView('resident_profile')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
+        {/* Tab Navigasi - Selalu Muncul Meskipun Belum Pilih Kamar */}
+        <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
+           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
+           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
         </div>
 
-        <div className="max-w-4xl mx-auto p-3.5 sm:p-6 w-full flex-1 space-y-4 sm:space-y-6">
+        <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
           {view === 'resident_dashboard' && (
              !currentUser?.room_id ? (
-               <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5">
-                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+               /* TAMPILAN PILIH KAMAR BARU: SIMPEL, COMPACT & TIDAK NUMPUK */
+               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
                    <div>
-                     <h3 className="text-lg sm:text-xl font-black text-slate-800 flex items-center">
-                       <DoorOpen className="mr-2 text-blue-600" size={22} /> Pilih Kamar Kos Anda
+                     <h3 className="text-xl font-black text-slate-800 flex items-center">
+                       <DoorOpen className="mr-2 text-blue-600" size={24} /> Pilih Kamar Kos Anda
                      </h3>
                      <p className="text-xs text-slate-500 mt-0.5">
-                       Selamat datang, <strong>{currentUser?.name}</strong>! Tentukan kamar idaman Anda.
+                       Selamat datang, <strong>{currentUser?.name}</strong>! Tentukan kamar idaman Anda untuk mulai menyewa.
                      </p>
                    </div>
-                   <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
                      {availableRooms.length} Kamar Kosong
                    </span>
                  </div>
 
-                 {/* PILIHAN CEPAT DROPDOWN */}
-                 <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
-                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                 {/* OPSI 1: PILIHAN CEPAT VIA DROPDOWN */}
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                   <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
                      Pilihan Cepat (Dropdown)
                    </label>
-                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                      <select 
                        value={selectedRoomId || ''} 
                        onChange={(e) => setSelectedRoomId(Number(e.target.value) || null)}
-                       className="flex-1 p-2.5 sm:p-3 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
+                       className="flex-1 p-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
                      >
                        <option value="">-- Pilih Kamar Dari Daftar --</option>
                        {availableRooms.map(r => (
@@ -3014,48 +3097,49 @@ function AppContent() {
                        type="button"
                        onClick={() => {
                          if (!selectedRoomId) {
-                           showToast('Pilih salah satu kamar terlebih dahulu', 'error');
+                           showToast('Silakan pilih salah satu kamar terlebih dahulu', 'error');
                            return;
                          }
                          handleChooseRoom(selectedRoomId);
                        }}
                        disabled={isLoading || !selectedRoomId}
-                       className="py-3 px-5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition disabled:opacity-40 cursor-pointer text-center"
+                       className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition disabled:opacity-40 cursor-pointer whitespace-nowrap"
                      >
                        Pilih Kamar Ini
                      </button>
                    </div>
                  </div>
 
-                 {/* DENAH GRID MINI KAMAR */}
-                 <div className="space-y-2.5">
-                   <div className="flex justify-between items-center gap-2">
+                 {/* OPSI 2: GRID DENAH KAMAR KOMPAK */}
+                 <div className="space-y-3">
+                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                       Atau Ketuk Denah Kamar:
+                       Atau Pilih Langsung Denah Kamar:
                      </span>
                      <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                        <button 
                          onClick={() => setResidentFloorFilter('all')}
-                         className={`px-2.5 py-1 rounded-lg text-xs transition ${residentFloorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                        >
-                         Semua
+                         Semua ({availableRooms.length})
                        </button>
                        <button 
                          onClick={() => setResidentFloorFilter('lt2')}
-                         className={`px-2.5 py-1 rounded-lg text-xs transition ${residentFloorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                        >
-                         Lt 2
+                         Lt 2 ({availRoomsLt2.length})
                        </button>
                        <button 
                          onClick={() => setResidentFloorFilter('lt3')}
-                         className={`px-2.5 py-1 rounded-lg text-xs transition ${residentFloorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                        >
-                         Lt 3
+                         Lt 3 ({availRoomsLt3.length})
                        </button>
                      </div>
                    </div>
 
-                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                   {/* Grid Ringkas & Kompak (Tidak Memakan Tempat) */}
+                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
                      {displayedAvailRooms.map(room => {
                        const isSelected = selectedRoomId === room.id;
                        const floor = getRoomFloor(room) === 3 ? 'Lt 3' : 'Lt 2';
@@ -3063,24 +3147,27 @@ function AppContent() {
                          <div
                            key={room.id}
                            onClick={() => setSelectedRoomId(room.id)}
-                           className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col justify-between ${
+                           className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col justify-between ${
                              isSelected 
-                               ? 'border-blue-600 bg-blue-50 shadow-sm ring-2 ring-blue-500/20' 
-                               : 'border-slate-200 bg-white hover:border-blue-300'
+                               ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20' 
+                               : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50/60'
                            }`}
                          >
                            <div>
-                             <div className="flex justify-between items-center text-[9px] text-slate-400 font-semibold mb-0.5">
+                             <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
                                <span>{floor}</span>
                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                              </div>
-                             <div className="text-base font-black text-slate-800 leading-tight">
+                             <div className="text-lg font-black text-slate-800 leading-tight">
                                {room.number}
                              </div>
+                             <div className="text-[11px] text-slate-500 truncate mt-0.5" title={room.name}>
+                               {room.name}
+                             </div>
                            </div>
-                           <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                             <div className="text-[10px] font-bold text-blue-600 mb-1">
-                               Rp {(Number(room.price) / 1000)}rb
+                           <div className="mt-2 pt-2 border-t border-slate-100">
+                             <div className="text-[11px] font-bold text-blue-600 mb-1.5">
+                               Rp {Number(room.price).toLocaleString('id-ID')}
                              </div>
                              <button
                                type="button"
@@ -3089,8 +3176,10 @@ function AppContent() {
                                  handleChooseRoom(room.id);
                                }}
                                disabled={isLoading}
-                               className={`w-full py-1 rounded-lg text-[10px] font-bold transition ${
-                                 isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
+                               className={`w-full py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                 isSelected 
+                                   ? 'bg-blue-600 text-white shadow-xs' 
+                                   : 'bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700'
                                }`}
                              >
                                Pilih
@@ -3100,51 +3189,52 @@ function AppContent() {
                        );
                      })}
                    </div>
+
+                   {displayedAvailRooms.length === 0 && (
+                     <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                       Tidak ada kamar kosong pada lantai ini.
+                     </div>
+                   )}
                  </div>
                </div>
              ) : (
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                  <h3 className="text-base sm:text-lg font-bold mb-3 flex items-center border-b pb-3">
-                    <CreditCard className="mr-2 text-blue-600" size={20}/> Tagihan Sewa Kamar
-                  </h3>
+               /* JIKA SUDAH PILIH KAMAR: TAMPILKAN TAGIHAN & STATUS KAMAR */
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
                   {pendingBill ? (
-                    <div className="text-center pt-2 flex-1 flex flex-col justify-center">
+                    <div className="text-center pt-4 flex-1 flex flex-col justify-center">
                       <div>
                         <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
-                        <h2 className="text-3xl sm:text-4xl font-black text-slate-800 my-3">Rp {Number(pendingBill.nominal).toLocaleString('id-ID')}</h2>
-                        <p className="text-xs font-mono font-bold text-slate-500 mb-1">Invoice: {pendingBill.ref_id}</p>
-                        <p className="text-xs text-slate-500 mb-5">Jatuh Tempo: {formatDueDate25(pendingBill.due_date)}</p>
-                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 hover:bg-blue-600 text-white py-3.5 rounded-xl font-bold transition shadow-lg cursor-pointer text-sm">
-                          Bayar dengan QRIS
-                        </button>
+                        <h2 className="text-4xl font-black text-slate-800 my-4">Rp {Number(pendingBill.nominal).toLocaleString('id-ID')}</h2>
+                        <p className="text-xs font-mono font-bold text-slate-500 mb-2">Invoice: {pendingBill.ref_id}</p>
+                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {formatDueDate25(pendingBill.due_date)}</p>
+                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg cursor-pointer">Bayar dengan QRIS</button>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-6 flex-1 flex flex-col justify-center">
-                      <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
-                      <span className="text-green-700 font-black text-lg block">Semua Tagihan Lunas</span>
-                      <p className="text-slate-500 mt-1 text-xs">Terima kasih telah membayar tepat waktu.</p>
+                    <div className="text-center pt-8 flex-1 flex flex-col justify-center">
+                      <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                      <span className="text-green-700 font-black text-xl block">Semua Tagihan Lunas</span>
+                      <p className="text-slate-500 mt-2 text-sm">Terima kasih telah membayar tepat waktu.</p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                  <h3 className="text-base sm:text-lg font-bold mb-3 flex items-center border-b pb-3">
-                    <DoorOpen className="mr-2 text-blue-600" size={20}/> Status Kamar Anda
-                  </h3>
-                  <div className="pt-2 text-center flex-1 flex flex-col justify-center">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Status Kamar Anda</h3>
+                  <div className="pt-4 text-center flex-1 flex flex-col justify-center">
                     {isActive ? (
-                      <div className="p-5 bg-green-50 text-green-800 rounded-xl border border-green-200">
-                        <CheckCircle size={40} className="mx-auto mb-2 text-green-500"/>
-                        <div className="font-black text-base">KAMAR AKTIF</div>
-                        <p className="text-xs mt-1">Masa aktif kamar s/d:<br/><strong>{formatDateSafe(currentUser?.active_until)}</strong></p>
+                      <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
+                        <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
+                        <div className="font-black text-lg">KAMAR AKTIF</div>
+                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{formatDateSafe(currentUser?.active_until)}</strong></p>
                       </div>
                     ) : (
-                      <div className="p-5 bg-red-50 text-red-800 rounded-xl border border-red-200">
-                        <XCircle size={40} className="mx-auto mb-2 text-red-500"/>
-                        <div className="font-black text-base">AKSES TERKUNCI</div>
-                        <p className="text-xs mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar sensor sidik jari aktif.</p>
+                      <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
+                        <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
+                        <div className="font-black text-lg">AKSES TERKUNCI</div>
+                        <p className="text-sm mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar kamar dan sidik jari kembali aktif.</p>
                       </div>
                     )}
                   </div>
@@ -3154,142 +3244,322 @@ function AppContent() {
           )}
 
           {view === 'resident_fingerprint' && (
-             <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-xl mx-auto">
-                <h3 className="text-lg sm:text-xl font-black mb-4 flex items-center justify-center border-b pb-3">
-                  <Fingerprint className="mr-2 text-blue-600" size={24}/> Akses Sidik Jari Pintu
-                </h3>
-                {!isActive ? (
-                    <div className="p-5 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs">
-                      <XCircle className="mx-auto mb-2 text-red-500" size={36}/>
-                      <p className="font-bold text-sm">Akses Pintu Terkunci</p>
-                      <p className="mt-1 text-slate-600">Tagihan sewa belum lunas. Selesaikan di Beranda.</p>
-                    </div>
-                ) : currentUser?.fingerprint_id ? (
-                    <div className="p-4">
-                       <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
-                       <h4 className="font-bold text-xl text-slate-800">Sidik Jari Aktif!</h4>
-                       <p className="text-xs mt-3 text-green-700 bg-green-50 p-2.5 rounded-xl border border-green-200">
-                         Pintu kamar sudah bisa dibuka dengan menempelkan jari ke sensor.
-                       </p>
-                       <div className="mt-6 flex flex-col sm:flex-row gap-2.5 justify-center">
-                          <button onClick={handleStartEnrollment} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md">
-                            Rekam Ulang Jari
-                          </button>
-                          <button onClick={handleResetResidentFp} className="px-4 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold text-xs">
-                            Hapus Jari
-                          </button>
-                       </div>
-                    </div>
-                ) : (
-                    <div className="p-4 flex flex-col items-center">
-                       <Fingerprint size={64} className="mb-3 text-blue-500" />
-                       <button onClick={handleStartEnrollment} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs shadow-md">
-                         Mulai Rekam Jari di Pintu
-                       </button>
-                    </div>
-                )}
-             </div>
+             !currentUser?.room_id ? (
+               <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md mx-auto">
+                 <DoorOpen className="mx-auto text-slate-300 mb-3" size={48} />
+                 <h4 className="font-black text-lg text-slate-800 mb-1">Belum Memilih Kamar</h4>
+                 <p className="text-xs text-slate-500 mb-4">
+                   Fitur pendaftaran sidik jari akan aktif otomatis setelah Anda memilih kamar kos di Beranda.
+                 </p>
+                 <button 
+                   onClick={() => setView('resident_dashboard')} 
+                   className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                 >
+                   Pilih Kamar Sekarang
+                 </button>
+               </div>
+             ) : (
+               <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
+                  <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
+                  {!isActive ? (
+                      <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
+                        <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
+                        <p className="font-bold">Akses Kamar Terkunci</p>
+                        <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
+                      </div>
+                  ) : currentUser?.fingerprint_id ? (
+                      <div className="p-6">
+                         <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                         <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
+                         <p className="text-sm mt-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">
+                           Pintu kamar Anda sudah bisa dibuka kapan saja dengan menempelkan jari Anda ke sensor di pintu.
+                         </p>
+                         
+                         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
+                            <button
+                              onClick={handleStartEnrollment}
+                              disabled={isLoading}
+                              className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition cursor-pointer"
+                            >
+                              <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
+                            </button>
+                            <button
+                              onClick={handleResetResidentFp}
+                              disabled={isLoading}
+                              className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200 cursor-pointer"
+                            >
+                              <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
+                            </button>
+                         </div>
+                      </div>
+                  ) : (
+                      <div className="p-6 flex flex-col items-center">
+                         <Fingerprint size={80} className={`mb-4 ${isScanningFP ? 'text-blue-500 animate-bounce' : 'text-slate-300'}`} />
+                         {isScanningFP ? (
+                             <div className="w-full max-w-md space-y-4">
+                               <div className="bg-gradient-to-b from-blue-50 to-indigo-50 border-2 border-blue-300 p-5 rounded-2xl shadow-sm text-left">
+                                 <div className="flex justify-between items-center mb-3">
+                                   <span className="font-black text-sm text-blue-900 tracking-wide flex items-center">
+                                     <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping mr-2"></span>
+                                     ALAT SIAGA MEREKAM
+                                   </span>
+                                   <span className="px-3 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
+                                     {enrollCountdown}s
+                                   </span>
+                                 </div>
+
+                                 <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">1.</span>
+                                     <span><strong>Tempelkan jari</strong> ke sensor pintu.</span>
+                                   </p>
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">2.</span>
+                                     <span><strong>Angkat jari</strong> Anda dari sensor.</span>
+                                   </p>
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">3.</span>
+                                     <span><strong>Tempelkan lagi jari yang sama</strong> sampai pintu terbuka!</span>
+                                   </p>
+                                 </div>
+                               </div>
+
+                               <button
+                                 onClick={handleCancelEnrollment}
+                                 className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1 cursor-pointer"
+                               >
+                                 Batalkan Perekaman
+                               </button>
+                             </div>
+                         ) : (
+                             <div className="w-full max-w-md space-y-4">
+                               <p className="text-slate-600 text-sm font-medium">Pilih salah satu cara termudah untuk mengaktifkan sidik jari kamar Anda:</p>
+                               
+                               <div className="space-y-3">
+                                 <button 
+                                   onClick={handleStartEnrollment} 
+                                   disabled={isLoading} 
+                                   className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm cursor-pointer"
+                                 >
+                                   <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
+                                 </button>
+
+                                 <button 
+                                   onClick={async () => {
+                                     try {
+                                       setIsLoading(true);
+                                       await axios.put('/api/users', {
+                                         userId: currentUser?.id,
+                                         fingerprint_id: currentUser?.id.toString(),
+                                         is_fingerprint_active: true
+                                       });
+                                       setCurrentUser({ ...currentUser, fingerprint_id: currentUser?.id.toString(), is_fingerprint_active: true });
+                                       showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
+                                       fetchDashboardData();
+                                     } catch(e) {
+                                       showToast('Gagal mengaktifkan', 'error');
+                                     } finally {
+                                       setIsLoading(false);
+                                     }
+                                   }}
+                                   disabled={isLoading} 
+                                   className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200 cursor-pointer"
+                                 >
+                                   <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
+                                 </button>
+                               </div>
+                             </div>
+                         )}
+                      </div>
+                  )}
+               </div>
+             )
           )}
 
           {view === 'resident_history' && (
-             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-               <h3 className="text-base font-bold mb-3 flex items-center border-b pb-3">
-                 <FileText className="mr-2 text-blue-600" size={18}/> Riwayat Pembayaran Anda
-               </h3>
-               {historyBills.length > 0 ? (
-                 <div className="space-y-2.5">
-                   {historyBills.map(b => (
-                     <div key={b.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
-                       <div>
-                         <span className="font-bold text-slate-800 block">{b.month}</span>
-                         <span className="text-[10px] text-slate-400 font-mono">{b.ref_id}</span>
-                       </div>
-                       <div className="text-right">
-                         <span className="font-black text-emerald-600 block">Rp {Number(b.nominal).toLocaleString('id-ID')}</span>
-                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">LUNAS</span>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               ) : (
-                 <div className="text-center py-8 text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed">
-                   Belum ada riwayat pembayaran yang tercatat.
-                 </div>
-               )}
-             </div>
+             !currentUser?.room_id ? (
+               <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md mx-auto">
+                 <CreditCard className="mx-auto text-slate-300 mb-3" size={48} />
+                 <h4 className="font-black text-lg text-slate-800 mb-1">Belum Ada Transaksi</h4>
+                 <p className="text-xs text-slate-500 mb-4">
+                   Riwayat pembayaran akan tercatat otomatis setelah Anda memilih kamar dan melakukan pembayaran.
+                 </p>
+                 <button 
+                   onClick={() => setView('resident_dashboard')} 
+                   className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                 >
+                   Pilih Kamar di Beranda
+                 </button>
+               </div>
+             ) : (
+               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                 <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
+                 {historyBills.length > 0 ? (
+                   <div className="overflow-x-auto rounded-lg border border-slate-200">
+                     <table className="w-full text-left text-sm whitespace-nowrap">
+                       <thead className="bg-slate-100">
+                         <tr>
+                           <th className="p-4">Bulan Tagihan</th>
+                           <th className="p-4">Ref TokoPay (Invoice)</th>
+                           <th className="p-4">Metode Bayar</th>
+                           <th className="p-4">Nominal</th>
+                           <th className="p-4">Status</th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-slate-100">
+                         {historyBills.map(b => (
+                           <tr key={b.id} className="hover:bg-slate-50">
+                             <td className="p-4">{b.month}</td>
+                             <td className="p-4 font-mono text-xs font-bold text-slate-700">{b.ref_id}</td>
+                             <td className="p-4">{renderPaymentBadge(b.payment_method)}</td>
+                             <td className="p-4 font-bold text-slate-800">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
+                             <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 ) : (
+                   <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                     Belum ada riwayat pembayaran yang tercatat.
+                   </div>
+                 )}
+               </div>
+             )
           )}
 
           {/* VIEW: PROFIL PENGHUNI */}
           {view === 'resident_profile' && (
-             <div className="space-y-4 max-w-xl mx-auto">
-               <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                 <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-black text-xl flex-shrink-0">
+             <div className="space-y-6 max-w-2xl mx-auto">
+               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-5">
+                 <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-4 border-blue-50 shadow-inner">
                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                  </div>
-                 <div>
-                   <h3 className="font-black text-base sm:text-lg text-slate-800">{currentUser?.name}</h3>
+                 <div className="text-center sm:text-left flex-1">
+                   <h3 className="font-black text-xl text-slate-800">{currentUser?.name}</h3>
                    <p className="text-xs text-slate-400 font-mono">@{currentUser?.username}</p>
+                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start mt-2.5">
+                     <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                       Kamar {safeRooms.find(r => r.id === currentUser?.room_id)?.number || '-'}
+                     </span>
+                     {currentUser?.is_fingerprint_active ? (
+                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
+                         <CheckCircle size={12} className="mr-1" /> Akses Aktif
+                       </span>
+                     ) : (
+                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center">
+                         <XCircle size={12} className="mr-1" /> Terkunci
+                       </span>
+                     )}
+                   </div>
                  </div>
                </div>
 
-               <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-                 <form onSubmit={handleUpdateProfile} className="space-y-3 text-xs">
+               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                 <div className="border-b pb-4 mb-6">
+                   <h4 className="font-black text-slate-800 text-base flex items-center">
+                     <User className="mr-2 text-blue-600" size={18} /> Detail Data Diri Penghuni
+                   </h4>
+                   <p className="text-xs text-slate-500 mt-1">
+                     Perbarui informasi kontak WhatsApp, email, dan alamat tempat tinggal asal Anda.
+                   </p>
+                 </div>
+
+                 <form onSubmit={handleUpdateProfile} className="space-y-4">
                    <div>
-                     <label className="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
-                     <input type="text" name="name" defaultValue={currentUser?.name || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium" required />
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nama Lengkap</label>
+                     <div className="relative">
+                       <User size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                       <input type="text" name="name" defaultValue={currentUser?.name || ''} className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                     </div>
                    </div>
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                      <div>
-                       <label className="block font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
-                       <input type="tel" name="phone" defaultValue={currentUser?.phone || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium" required />
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor WhatsApp</label>
+                       <div className="relative">
+                         <Phone size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input type="tel" name="phone" defaultValue={currentUser?.phone || ''} placeholder="08123456789" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                       </div>
                      </div>
                      <div>
-                       <label className="block font-bold text-slate-700 mb-1">Email</label>
-                       <input type="email" name="email" defaultValue={currentUser?.email || ''} className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium" required />
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Email</label>
+                       <div className="relative">
+                         <Mail size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input type="email" name="email" defaultValue={currentUser?.email || ''} placeholder="nama@email.com" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                       </div>
                      </div>
                    </div>
+
                    <div>
-                     <label className="block font-bold text-slate-700 mb-1">Alamat (KTP)</label>
-                     <textarea name="address" defaultValue={currentUser?.address || ''} rows={2} className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium resize-none" required></textarea>
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Alamat Lengkap (KTP)</label>
+                     <div className="relative">
+                       <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
+                       <textarea name="address" defaultValue={currentUser?.address || ''} rows={2} placeholder="Alamat asal / KTP" className="w-full pl-9 p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium" required></textarea>
+                     </div>
                    </div>
-                   <div>
-                     <label className="block font-bold text-slate-700 mb-1">Ganti Password (Opsional)</label>
-                     <input type="password" name="password" placeholder="Kosongkan jika tidak diganti" className="w-full p-2.5 border rounded-xl bg-slate-50 font-medium" />
+
+                   <div className="border-t pt-4">
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Ganti Password (Opsional)</label>
+                     <input type="password" name="password" placeholder="Kosongkan jika tidak ingin mengganti password" className="w-full p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" />
+                     <p className="text-[11px] text-slate-400 mt-1">Isi hanya jika Anda ingin mengubah password login Anda.</p>
                    </div>
-                   <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs shadow-md mt-2">
-                     Simpan Perubahan
-                   </button>
+
+                   <div className="pt-2">
+                     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition flex items-center justify-center cursor-pointer">
+                       <Save size={16} className="mr-2" /> Simpan Perubahan Profil
+                     </button>
+                   </div>
                  </form>
                </div>
              </div>
           )}
         </div>
 
-        {/* MODAL SCAN QRIS */}
+        {/* Modal Scan QRIS TokoPay */}
         {paymentModal && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white p-5 rounded-3xl shadow-2xl w-full max-w-xs text-center border">
-              <h3 className="text-base font-black mb-1">Scan QRIS (TokoPay)</h3>
-              <p className="text-[11px] text-blue-600 font-mono font-bold mb-3 bg-blue-50 py-1 rounded-lg">{paymentModal.ref_id}</p>
+          <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+              <h3 className="text-xl font-bold mb-1">Scan QRIS (TokoPay)</h3>
+              <p className="text-xs text-blue-600 font-mono font-bold mb-4 bg-blue-50 py-1 rounded-lg">Invoice: {paymentModal.ref_id}</p>
               
-              <div className="bg-slate-100 p-2 rounded-2xl mb-3 min-h-[220px] flex justify-center items-center border-2 border-dashed border-slate-300">
-                 {qrisData ? (
-                   <img src={qrisData} alt="QRIS" className="w-full rounded-xl shadow-xs" />
-                 ) : (
-                   <div className="text-slate-500 font-bold flex flex-col items-center text-xs">
-                     <Activity className="animate-spin mb-2 text-blue-500" size={24}/> Memproses QR...
-                   </div>
-                 )}
+              <div className="bg-slate-100 p-2 rounded-xl mb-4 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
+                 {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2 text-blue-500" size={32}/> Memproses QR...</div>}
               </div>
 
-              <p className="text-[10px] text-slate-400 mb-3">Dapat dibayar via DANA, GoPay, ShopeePay, BCA, Livin, dll.</p>
+              <p className="text-[11px] text-slate-400 mb-3">Dapat dibayar menggunakan GoPay, ShopeePay, OVO, DANA, BCA, Livin, dll.</p>
 
               <button
                 type="button"
                 onClick={() => setPaymentModal(null)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+                className="w-full py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Konfirmasi Perekaman Sukses */}
+        {enrollSuccessModal && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                <CheckCircle size={44} className="animate-pulse" />
+              </div>
+              <h3 className="font-black text-slate-800 text-2xl mb-2">Perekaman Sukses!</h3>
+              <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                Sidik jari Anda berhasil disimpan di sensor fisik pada <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Slot #{enrollSuccessModal.slot_id}</span>.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnrollSuccessModal(null);
+                  setView('resident_dashboard');
+                }}
+                className="w-full py-3.5 bg-green-600 text-white rounded-xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-600/30 transition cursor-pointer"
+              >
+                Selesai & Ke Beranda
               </button>
             </div>
           </div>
@@ -3306,42 +3576,30 @@ function AppContent() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 1cm;
           }
-          body, html {
+          body {
             background-color: white !important;
             color: black !important;
-            height: auto !important;
-            overflow: visible !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
           }
-          .print\\:hidden {
-            display: none !important;
-          }
-          .print\\:block {
+          .print-document-container {
+            width: 100% !important;
             display: block !important;
           }
           table {
-            width: 100% !important;
             border-collapse: collapse !important;
           }
           th, td {
-            border: 1px solid #475569 !important;
-            padding: 6px 8px !important;
-          }
-          th {
-            background-color: #f1f5f9 !important;
-            color: #0f172a !important;
+            border: 1px solid #1e293b !important;
           }
         }
       `}</style>
 
       {isAuthView ? renderAuth() : currentUser.role === 'admin' ? renderAdmin() : renderResident()}
       {toast && (
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 print:hidden">
-           <div className={`px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-xl font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-850 text-white'}`}>
-             {toast.type === 'error' ? <XCircle className="mr-2" size={16} /> : <CheckCircle className="mr-2 text-green-400" size={16} />} {toast.msg}
+        <div className="fixed bottom-6 right-6 z-50 print:hidden">
+           <div className={`px-6 py-4 rounded-xl shadow-xl font-bold flex items-center ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
+             {toast.type === 'error' ? <XCircle className="mr-3" /> : <CheckCircle className="mr-3 text-green-400" />} {toast.msg}
            </div>
         </div>
       )}
