@@ -5,7 +5,7 @@ import {
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
-  Smartphone, Banknote, User, Mail, MapPin
+  Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -258,6 +258,12 @@ function AppContent() {
   const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
   const [residentFloorFilter, setResidentFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
+  // State Pengelolaan Akun & Pencarian User
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userFilterTab, setUserFilterTab] = useState<'all' | 'no_room' | 'has_room' | 'active'>('all');
+  const [adminUserModal, setAdminUserModal] = useState<{ type: 'add' | 'edit', data?: any } | null>(null);
+  const [deleteUserModal, setDeleteUserModal] = useState<any | null>(null);
 
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
@@ -568,6 +574,87 @@ function AppContent() {
         setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
       } else { showToast(response.data.message, 'error'); }
     } catch (error) { showToast('Gagal memproses kamar. Coba lagi.', 'error'); }
+  };
+
+  // Handler Admin: Simpan (Tambah Baru / Edit Profil) Pengguna
+  const handleSaveAdminUser = async (e: any) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const fd = new FormData(e.target);
+    const payload: any = {
+      name: fd.get('name'),
+      username: fd.get('username'),
+      phone: fd.get('phone'),
+      email: fd.get('email'),
+      address: fd.get('address'),
+      room_id: fd.get('room_id') ? Number(fd.get('room_id')) : null,
+    };
+    const pwd = fd.get('password');
+    if (pwd && String(pwd).trim() !== '') {
+      payload.password = String(pwd).trim();
+    }
+
+    try {
+      if (adminUserModal?.type === 'add') {
+        const res = await axios.post('/api/users?action=admin-create', payload);
+        if (res.data.success) {
+          showToast('Akun penghuni baru berhasil dibuat!', 'success');
+          setAdminUserModal(null);
+          fetchDashboardData();
+        } else {
+          showToast(res.data.message || 'Gagal membuat akun', 'error');
+        }
+      } else {
+        payload.userId = adminUserModal?.data?.id;
+        const res = await axios.put('/api/users', payload);
+        if (res.data.success) {
+          showToast('Data akun berhasil diperbarui!', 'success');
+          setAdminUserModal(null);
+          fetchDashboardData();
+        } else {
+          showToast(res.data.message || 'Gagal update data', 'error');
+        }
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Gagal memproses ke server', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handler Admin: Konfirmasi Hapus Akun Pengguna
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteUserModal) return;
+    setIsLoading(true);
+    try {
+      await axios.delete(`/api/users?id=${deleteUserModal.id}`);
+      showToast(`Akun ${deleteUserModal.name} berhasil dihapus permanen`, 'success');
+      setDeleteUserModal(null);
+      fetchDashboardData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Gagal menghapus pengguna', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handler Admin: Toggle Akses Sidik Jari / Buka Akses Pengguna
+  const handleToggleUserAccess = async (u: any) => {
+    setIsLoading(true);
+    try {
+      const nextActive = !u.is_fingerprint_active;
+      await axios.put('/api/users', {
+        userId: u.id,
+        fingerprint_id: nextActive ? (u.fingerprint_id || u.id.toString()) : u.fingerprint_id,
+        is_fingerprint_active: nextActive
+      });
+      showToast(`Akses pintu ${u.name} ${nextActive ? 'diaktifkan (Lunas)' : 'dikunci (Terkunci)'}!`, 'success');
+      fetchDashboardData();
+    } catch (e) {
+      showToast('Gagal mengubah status akses', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGenerateBills = async () => {
@@ -1582,77 +1669,328 @@ function AppContent() {
           </div>
         )}
 
-        {/* VIEW: KELOLA USER */}
-        {view === 'admin_users' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
-            <h3 className="font-bold mb-6 text-lg">Kelola User (Penghuni Aktif)</h3>
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-100 border-b">
-                <tr>
-                  <th className="p-4">Nama</th>
-                  <th className="p-4">Username</th>
-                  <th className="p-4">Kamar</th>
-                  <th className="p-4">Status Sidik Jari</th>
-                  <th className="p-4">Status Tagihan</th>
-                  <th className="p-4">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {safeUsers.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-bold">{u.name}</td>
-                    <td className="p-4 text-slate-500">{u.username}</td>
-                    <td className="p-4 font-bold">{safeRooms.find(r => r.id === u.room_id)?.number || '-'}</td>
-                    <td className="p-4">
-                      {u.fingerprint_id ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
-                          <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                          Belum Didaftarkan
-                        </span>
+        {/* VIEW: KELOLA USER (PANEL ADMIN PROFESIONAL: PENCARIAN NAMA & USER BARU DI ATAS) */}
+        {view === 'admin_users' && (() => {
+          const nonAdminUsers = safeUsers.filter(u => !u.role || u.role === 'resident' || u.role !== 'admin');
+
+          // ATURAN MUTLAK: Pengguna baru ditaruh di paling atas (berdasarkan urutan pendaftaran / ID terbaru)
+          const sortedAdminUsers = [...nonAdminUsers].sort((a, b) => {
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+            return (Number(b.id) || 0) - (Number(a.id) || 0);
+          });
+
+          // Filter Pencarian Nama / Username / Telepon
+          const searchedUsers = sortedAdminUsers.filter(u => {
+            const q = userSearchQuery.toLowerCase().trim();
+            if (q) {
+              const nameMatch = (u.name || '').toLowerCase().includes(q);
+              const userMatch = (u.username || '').toLowerCase().includes(q);
+              const phoneMatch = (u.phone || '').toLowerCase().includes(q);
+              const emailMatch = (u.email || '').toLowerCase().includes(q);
+              if (!nameMatch && !userMatch && !phoneMatch && !emailMatch) return false;
+            }
+            if (userFilterTab === 'no_room') return !u.room_id;
+            if (userFilterTab === 'has_room') return Boolean(u.room_id);
+            if (userFilterTab === 'active') return Boolean(u.is_fingerprint_active);
+            return true;
+          });
+
+          const totalUserCount = nonAdminUsers.length;
+          const noRoomCount = nonAdminUsers.filter(u => !u.room_id).length;
+          const hasRoomCount = nonAdminUsers.filter(u => Boolean(u.room_id)).length;
+          const activeAccessCount = nonAdminUsers.filter(u => Boolean(u.is_fingerprint_active)).length;
+
+          return (
+            <div className="space-y-6">
+              {/* Header Panel Kelola Akun */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 flex items-center">
+                    <Users className="mr-2 text-blue-600" size={24} /> Kelola User & Akun Penghuni
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Manajemen data akun, penetapan kamar, status akses sidik jari, dan kontrol penuh pengguna
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminUserModal({ type: 'add', data: {} })}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
+                >
+                  <UserPlus size={15} className="mr-1.5" /> Tambah Pengguna Baru
+                </button>
+              </div>
+
+              {/* 4 Mini Kartu Ringkasan Akun */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total User</span>
+                    <span className="text-lg font-black text-slate-800">{totalUserCount}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-amber-200/80 bg-amber-50/20 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Belum Ada Kamar</span>
+                    <span className="text-lg font-black text-amber-600">{noRoomCount} akun</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <DoorOpen size={18} />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Punya Kamar</span>
+                    <span className="text-lg font-black text-slate-800">{hasRoomCount} akun</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck size={18} />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Akses Aktif</span>
+                    <span className="text-lg font-black text-slate-800">{activeAccessCount} akun</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bilah Pencarian Nama & Filter Tab Status */}
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                {/* Kolom Pencarian Berdasarkan Nama / Username */}
+                <div className="relative flex-1 max-w-md">
+                  <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Cari berdasarkan nama, username, atau WhatsApp..."
+                    className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 transition"
+                  />
+                  {userSearchQuery && (
+                    <button
+                      onClick={() => setUserSearchQuery('')}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Sub Tab Filter */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
+                  <button
+                    onClick={() => setUserFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Semua ({nonAdminUsers.length})
+                  </button>
+                  <button
+                    onClick={() => setUserFilterTab('no_room')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'no_room' ? 'bg-white text-amber-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Belum Pilih Kamar ({noRoomCount})
+                  </button>
+                  <button
+                    onClick={() => setUserFilterTab('has_room')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'has_room' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Punya Kamar ({hasRoomCount})
+                  </button>
+                  <button
+                    onClick={() => setUserFilterTab('active')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${userFilterTab === 'active' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Akses Aktif ({activeAccessCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabel Pengguna Model Admin Profesional */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3.5 text-center w-12">No</th>
+                        <th className="p-3.5">Akun Penghuni</th>
+                        <th className="p-3.5">Kontak & WhatsApp</th>
+                        <th className="p-3.5">Kamar Ditempati</th>
+                        <th className="p-3.5">Status Akses & Sidik Jari</th>
+                        <th className="p-3.5">Tanggal Daftar</th>
+                        <th className="p-3.5 text-center w-36">Aksi Pengelola</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {searchedUsers.map((u, idx) => {
+                        const room = safeRooms.find(r => r.id === u.room_id || String(r.number).trim() === String(u.room_id).trim());
+                        const isNewUser = !u.room_id;
+                        const cleanPhone = (u.phone || '').replace(/\D/g, '');
+                        const waLink = cleanPhone ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`) : null;
+
+                        return (
+                          <tr key={u.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-3.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+
+                            {/* Nama & Username */}
+                            <td className="p-3.5">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
+                                  {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800 text-sm">{u.name}</span>
+                                    {isNewUser && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center">
+                                        Baru
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-slate-400 font-mono block">@{u.username}</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Kontak & WhatsApp */}
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                {u.phone ? (
+                                  <a
+                                    href={waLink || '#'}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+                                    title="Klik untuk chat WhatsApp"
+                                  >
+                                    <Phone size={12} className="text-emerald-500" />
+                                    <span>{u.phone}</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[11px]">Belum ada WA</span>
+                                )}
+                                {u.email && <span className="text-[11px] text-slate-400 block truncate max-w-xs">{u.email}</span>}
+                              </div>
+                            </td>
+
+                            {/* Kamar Ditempati */}
+                            <td className="p-3.5">
+                              {room ? (
+                                <div className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                                  <DoorOpen size={13} className="mr-1.5 text-blue-600" />
+                                  Kamar {room.number}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock size={12} className="mr-1 text-amber-500" />
+                                  Belum Pilih Kamar
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Status Akses & Sidik Jari */}
+                            <td className="p-3.5">
+                              <div className="space-y-1">
+                                {u.is_fingerprint_active ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
+                                    <CheckCircle size={11} className="mr-1 text-emerald-600" /> Akses Aktif (Lunas)
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center">
+                                    <XCircle size={11} className="mr-1 text-rose-600" /> Terkunci
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-slate-400 block">
+                                  Sensor: {u.fingerprint_id ? `ID #${u.fingerprint_id}` : 'Belum Rekam Jari'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Tanggal Terdaftar */}
+                            <td className="p-3.5 text-slate-500 text-[11px]">
+                              {formatDateSafe(u.created_at)}
+                            </td>
+
+                            {/* Aksi Pengelola */}
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                {/* Toggle Akses Cepat */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleUserAccess(u)}
+                                  disabled={isLoading}
+                                  className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                                    u.is_fingerprint_active
+                                      ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+                                      : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                  }`}
+                                  title={u.is_fingerprint_active ? 'Kunci Akses Pintu' : 'Buka & Aktifkan Akses Pintu'}
+                                >
+                                  {u.is_fingerprint_active ? <Lock size={14} /> : <Unlock size={14} />}
+                                </button>
+
+                                {/* Edit Profil Akun */}
+                                <button
+                                  type="button"
+                                  onClick={() => setAdminUserModal({ type: 'edit', data: u })}
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
+                                  title="Edit Akun & Kamar"
+                                >
+                                  <Edit size={14} />
+                                </button>
+
+                                {/* Hapus Akun */}
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteUserModal(u)}
+                                  className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                                  title="Hapus Akun Pengguna"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {searchedUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-10 text-center text-slate-400">
+                            <Users size={40} className="mx-auto text-slate-300 mb-2" />
+                            <p className="font-bold text-slate-700 text-sm">Tidak Ada Pengguna Ditemukan</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {userSearchQuery ? `Tidak ada nama yang cocok dengan "${userSearchQuery}"` : 'Belum ada pengguna terdaftar'}
+                            </p>
+                            {userSearchQuery && (
+                              <button
+                                onClick={() => setUserSearchQuery('')}
+                                className="mt-3 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition cursor-pointer"
+                              >
+                                Bersihkan Pencarian
+                              </button>
+                            )}
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="p-4">
-                      {!u.room_id ? (
-                         <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
-                      ) : !u.is_fingerprint_active ? (
-                         <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
-                      ) : (
-                         <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={async () => {
-                          try {
-                            setIsLoading(true);
-                            await axios.put('/api/users', {
-                              userId: u.id,
-                              fingerprint_id: u.id.toString(),
-                              is_fingerprint_active: true
-                            });
-                            showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
-                            fetchDashboardData();
-                          } catch(e) {
-                            showToast('Gagal mengaktifkan', 'error');
-                          } finally {
-                            setIsLoading(false);
-                          }
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer"
-                      >
-                        <ShieldCheck size={14} className="mr-1.5" />
-                        {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* VIEW: LAPORAN KEUANGAN */}
         {view === 'admin_reports' && (
@@ -2348,6 +2686,174 @@ function AppContent() {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Admin: Tambah / Edit Akun Pengguna */}
+        {adminUserModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveAdminUser} className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
+                  {adminUserModal.type === 'add' ? <UserPlus size={24} /> : <Edit size={24} />}
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">
+                    {adminUserModal.type === 'add' ? 'Tambah Akun Penghuni Baru' : 'Edit Akun Pengguna'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {adminUserModal.type === 'add' ? 'Daftarkan akun dan tetapkan kamar langsung' : `Mengedit data akun @${adminUserModal.data?.username}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-5 max-h-[65vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap</label>
+                  <input
+                    type="text"
+                    name="name"
+                    defaultValue={adminUserModal.data?.name || ''}
+                    placeholder="Contoh: Rian Pratama"
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Username</label>
+                    <input
+                      type="text"
+                      name="username"
+                      defaultValue={adminUserModal.data?.username || ''}
+                      placeholder="username"
+                      className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      defaultValue={adminUserModal.data?.phone || ''}
+                      placeholder="08123456789"
+                      className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Aktif</label>
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={adminUserModal.data?.email || ''}
+                    placeholder="nama@email.com"
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Alamat Asal / KTP</label>
+                  <textarea
+                    name="address"
+                    defaultValue={adminUserModal.data?.address || ''}
+                    rows={2}
+                    placeholder="Alamat asal lengkap"
+                    className="w-full p-2 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium"
+                  ></textarea>
+                </div>
+
+                {/* Penetapan Kamar */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tetapkan Kamar Hunian</label>
+                  <select
+                    name="room_id"
+                    defaultValue={adminUserModal.data?.room_id || ''}
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Belum Ada Kamar (Pilih Sendiri Nanti) --</option>
+                    {safeRooms.map(r => {
+                      const isOccupiedByOther = r.status === 'occupied' && r.id !== adminUserModal.data?.room_id;
+                      return (
+                        <option key={r.id} value={r.id} disabled={isOccupiedByOther}>
+                          Kamar {r.number} — {r.name} {isOccupiedByOther ? '(Sudah Terisi)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {adminUserModal.type === 'add' ? 'Password Akun' : 'Ganti Password (Opsional)'}
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    placeholder={adminUserModal.type === 'add' ? 'Default: user123' : 'Kosongkan jika tidak ingin diubah'}
+                    className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdminUserModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  {adminUserModal.type === 'add' ? 'Buat Akun' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Modal Konfirmasi Hapus Akun Pengguna */}
+        {deleteUserModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={28} />
+              </div>
+              <h3 className="font-black text-slate-800 text-base mb-1">Hapus Pengguna?</h3>
+              <p className="text-xs text-slate-600 mb-2">
+                Anda akan menghapus akun <strong>{deleteUserModal.name}</strong> (@{deleteUserModal.username}).
+              </p>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-700 text-left mb-4 space-y-1">
+                <p>• Kamar yang ditempati akan otomatis menjadi <strong>Kosong</strong> kembali.</p>
+                <p>• Hak akses sidik jari pintu kamar akan otomatis dicabut.</p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteUserModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteUser}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  Ya, Hapus Akun
+                </button>
+              </div>
             </div>
           </div>
         )}
