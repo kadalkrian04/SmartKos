@@ -3,7 +3,7 @@ import {
   Users, DoorOpen, CreditCard, Settings, LogOut, 
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
-  Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight
+  Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -41,6 +41,7 @@ export default function App() {
   const [residentEditFpModal, setResidentEditFpModal] = useState(false);
   const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
+  const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
@@ -450,6 +451,7 @@ export default function App() {
   // Persentase hunian kamar
   const totalKamarCount = rooms.length || 1;
   const kamarTerisiCount = rooms.filter(r => r.status === 'occupied').length;
+  const kamarKosongCount = rooms.filter(r => r.status === 'available').length;
   const occupancyPercent = Math.round((kamarTerisiCount / totalKamarCount) * 100);
 
   // Pembagian Denah Kamar: Lantai 2 (16 Kamar) & Lantai 3 (3 Kamar)
@@ -462,6 +464,16 @@ export default function App() {
   });
 
   const roomsLantai3 = rooms.filter(r => !roomsLantai2.includes(r));
+
+  // Daftar kamar yang ditampilkan sesuai tab aktif
+  const displayedRooms = floorFilter === 'lt2' 
+    ? roomsLantai2 
+    : floorFilter === 'lt3' 
+      ? roomsLantai3 
+      : rooms;
+
+  const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
+  const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -499,11 +511,11 @@ export default function App() {
           <Fingerprint className="text-blue-400" size={28} />
           <span className="font-bold text-xl">AdminKos</span>
         </div>
+        {}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto text-sm">
           {[
             { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
             { id: 'admin_users', icon: Users, label: 'Data Penghuni' },
-            { id: 'admin_rooms', icon: DoorOpen, label: 'Kelola Kamar' },
             { id: 'admin_bills', icon: CreditCard, label: 'Tagihan & Keuangan' },
             { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
             { id: 'admin_history', icon: History, label: 'Riwayat Transaksi' },
@@ -535,268 +547,281 @@ export default function App() {
         {/* ========================================================================= */}
         {view === 'admin_dashboard' && (
           <div className="space-y-6">
-            {/* 4 KARTU STATISTIK UTAMA (PEMASUKAN, PENGELUARAN, BELUM LUNAS, PERSENTASE HUNIAN) */}
+            {/* 4 KARTU STATISTIK UTAMA (PERSIS SEPERTI GAMBAR CONTOH) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* 1. PEMASUKAN */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl">
-                  <TrendingUp size={28} />
+              {/* 1. KARTU PEMASUKAN (Warna Biru Navy Gelap) */}
+              <div className="bg-[#1e293b] text-white p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-300 tracking-wider uppercase">
+                    PEMASUKAN
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300">
+                    <TrendingUp size={16} />
+                  </div>
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Pemasukan</span>
-                  <div className="text-xl font-black text-slate-800">Rp {totalPemasukan.toLocaleString('id-ID')}</div>
-                  <span className="text-[11px] text-emerald-600 font-semibold flex items-center mt-0.5">
-                    Lunas dari sistem & QRIS
+                  <div className="text-2xl font-black tracking-tight mb-1">
+                    Rp {totalPemasukan.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {totalLunasCount} dari {totalTenantsWithRooms} penyewa lunas
                   </span>
                 </div>
               </div>
 
-              {/* 2. PENGELUARAN */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-rose-100 text-rose-600 rounded-xl">
-                    <TrendingDown size={28} />
+              {/* 2. KARTU PENGELUARAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PENGELUARAN
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => setExpenseModal(true)} 
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition" 
+                      title="Catat Pengeluaran"
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                      <TrendingDown size={16} />
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Pengeluaran</span>
-                    <div className="text-xl font-black text-slate-800">Rp {totalPengeluaran.toLocaleString('id-ID')}</div>
-                    <span className="text-[11px] text-slate-500 font-medium">Laba: <strong className={labaBersih >= 0 ? 'text-emerald-600' : 'text-rose-600'}>Rp {labaBersih.toLocaleString('id-ID')}</strong></span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setExpenseModal(true)}
-                  className="p-2 bg-slate-100 hover:bg-rose-50 text-rose-600 rounded-xl transition"
-                  title="Tambah Pengeluaran"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-
-              {/* 3. STATUS BELUM LUNAS */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                <div className="p-3 bg-amber-100 text-amber-600 rounded-xl">
-                  <AlertCircle size={28} />
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Belum Lunas</span>
-                  <div className="text-xl font-black text-amber-600">{totalBelumLunas} Penyewa</div>
-                  <span className="text-[11px] text-slate-500 font-medium">Sidik jari otomatis terkunci</span>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp {totalPengeluaran.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">Bulan ini</span>
                 </div>
               </div>
 
-              {/* 4. PERSENTASE HUNIAN */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tingkat Hunian</span>
-                  <span className="text-xs font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{occupancyPercent}%</span>
+              {/* 3. KARTU BELUM LUNAS */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    BELUM LUNAS
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Clock size={16} />
+                  </div>
                 </div>
-                <div className="text-xl font-black text-slate-800 mb-2">
-                  {kamarTerisiCount} <span className="text-xs font-bold text-slate-400">/ {totalKamarCount} Kamar Terisi</span>
+                <div>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1 flex items-baseline gap-1.5">
+                    <span>{totalBelumLunas}</span>
+                    <span className="text-sm font-semibold text-slate-500">penyewa</span>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">Butuh ditagih</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-                    style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
-                  ></div>
+              </div>
+
+              {/* 4. KARTU HUNIAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    HUNIAN
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                    <Home size={16} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-base font-black text-slate-800 tracking-tight mb-2">
+                    {kamarTerisiCount}/{totalKamarCount} <span className="text-xs font-semibold text-slate-400">kamar terisi</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-1.5">
+                    <div 
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">{occupancyPercent}% hunian</span>
                 </div>
               </div>
             </div>
 
             {/* ===================================================================== */}
-            {/* DENAH LANTAI 2: 16 KAMAR */}
+            {/* HEADER STATUS KAMAR & TOMBOL TAMBAH KAMAR */}
             {/* ===================================================================== */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 gap-2">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h3 className="font-black text-lg text-slate-800 flex items-center">
-                    <Home className="mr-2 text-blue-600" size={22}/> Denah Kamar: Lantai 2 (16 Kamar)
-                  </h3>
-                  <p className="text-xs text-slate-500">Peta visual denah kamar, status hunian, dan jatuh tempo sewa lantai dua</p>
+                  <h3 className="text-xl font-black text-slate-800">Status Kamar</h3>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    {rooms.length} kamar · {kamarKosongCount} kosong · {totalBelumLunas} belum lunas
+                  </p>
                 </div>
-                <div className="flex items-center gap-3 text-xs font-bold">
-                  <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-500 mr-1.5"></span> Terisi ({roomsLantai2.filter(r => r.status === 'occupied').length})</span>
-                  <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-300 mr-1.5"></span> Kosong ({roomsLantai2.filter(r => r.status === 'available').length})</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  {/* Filter Lantai */}
+                  <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    <button 
+                      onClick={() => setFloorFilter('all')} 
+                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      Semua ({rooms.length})
+                    </button>
+                    <button 
+                      onClick={() => setFloorFilter('lt2')} 
+                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      Lt 2 (16)
+                    </button>
+                    <button 
+                      onClick={() => setFloorFilter('lt3')} 
+                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      Lt 3 (3)
+                    </button>
+                  </div>
+
+                  {/* Tombol Tambah Kamar Menonjol */}
+                  <button 
+                    onClick={() => setRoomModal({ type: 'add', data: {} })} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition"
+                  >
+                    <Plus size={15} className="mr-1.5" /> Tambah Kamar
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {roomsLantai2.map(room => {
+              {/* ===================================================================== */}
+              {/* GRID DENAH STATUS KAMAR (PERSIS DENGAN KARTU PADA GAMBAR) */}
+              {/* ===================================================================== */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayedRooms.map(room => {
                   const resident = users.find(u => u.room_id === room.id && u.role === 'resident');
                   const residentBill = bills.find(b => b.user_id === resident?.id);
                   const isPaid = resident?.is_fingerprint_active;
+                  const isOccupied = room.status === 'occupied' && resident;
+
+                  // Tentukan lantai otomatis
+                  const numOnly = parseInt(room.number.replace(/\D/g, ''), 10);
+                  const floorLabel = (numOnly >= 301 || (room.name || '').toLowerCase().includes('lt 3') || (room.name || '').toLowerCase().includes('lantai 3'))
+                    ? 'Lantai 3'
+                    : 'Lantai 2';
+
+                  // Format tanggal masuk & jatuh tempo
+                  const masukDateStr = resident?.created_at 
+                    ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '-';
+                  
+                  const dueRaw = residentBill?.due_date || resident?.active_until;
+                  const dueDateStr = dueRaw 
+                    ? new Date(dueRaw).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '-';
 
                   return (
                     <div 
                       key={room.id}
-                      className={`p-4 rounded-xl border-2 transition-all flex flex-col justify-between ${
-                        room.status === 'occupied' 
-                          ? 'border-blue-200 bg-gradient-to-br from-blue-50/50 to-indigo-50/30' 
-                          : 'border-dashed border-slate-200 bg-slate-50/50'
-                      }`}
+                      className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition p-4 flex flex-col justify-between"
                     >
+                      {/* Bagian Atas: Nomor Kamar, Lantai & Badge Status */}
                       <div>
-                        {/* Header Kartu Kamar */}
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-black text-xl text-slate-800 flex items-center">
-                            {room.number}
-                          </span>
-                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                            room.status === 'occupied' 
-                              ? 'bg-blue-600 text-white shadow-xs' 
-                              : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {room.status === 'occupied' ? 'TERISI' : 'KOSONG'}
-                          </span>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
+                              <DoorOpen size={18} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-sm text-slate-800 leading-tight">
+                                Kamar {room.number}
+                              </h4>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                {floorLabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Badge Status (Belum Lunas / Lunas / Kosong) */}
+                          {isOccupied ? (
+                            isPaid ? (
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200/60 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> Lunas
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200/60 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
+                              </span>
+                            )
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span> Kosong
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-500 font-medium mb-3 truncate">{room.name}</p>
 
-                        {/* Detail Penghuni Jika Kamar Terisi */}
-                        {room.status === 'occupied' && resident ? (
-                          <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-xs space-y-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <UserCheck size={13} className="mr-1 text-blue-500" /> Penyewa
-                              </span>
-                              <span className="font-black text-slate-800 truncate max-w-[110px]">{resident.name}</span>
+                        {/* Bagian Tengah: Detail Penghuni / Kotak Kosong */}
+                        {isOccupied ? (
+                          <div className="space-y-1.5 my-3 text-xs">
+                            <div className="flex items-center text-slate-700 font-semibold truncate">
+                              <UserCheck size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{resident.name}</span>
                             </div>
-
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <Calendar size={13} className="mr-1 text-slate-400" /> Tgl Masuk
-                              </span>
-                              <span className="font-semibold text-slate-700">
-                                {resident.created_at ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
-                              </span>
+                            <div className="flex items-center text-slate-500 font-normal">
+                              <Phone size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span>{resident.username ? `@${resident.username}` : '-'}</span>
                             </div>
-
-                            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <CreditCard size={13} className="mr-1 text-amber-500" /> Jatuh Tempo
-                              </span>
-                              <span className={`font-bold ${isPaid ? 'text-emerald-600' : 'text-rose-600 animate-pulse'}`}>
-                                {residentBill?.due_date 
-                                  ? new Date(residentBill.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) 
-                                  : (resident.active_until ? new Date(resident.active_until).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-')}
+                            <div className="flex items-center text-[11px] text-slate-400 pt-0.5">
+                              <Calendar size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span>Masuk: {masukDateStr}</span>
+                              <span className="mx-1.5">·</span>
+                              <span className={`font-semibold ${isPaid ? 'text-slate-600' : 'text-amber-600'}`}>
+                                JT: {dueDateStr}
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <div className="py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl bg-white/60">
-                            <p className="font-bold text-slate-600">Rp {room.price.toLocaleString('id-ID')}</p>
-                            <span className="text-[11px]">Siap Dihuni</span>
+                          <div className="my-3 py-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs font-semibold text-slate-400">
+                            Kosong
                           </div>
                         )}
                       </div>
 
-                      {/* Footer Hardware Info */}
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                        <span>Fingerprint:</span>
-                        <span className={`font-bold ${room.fingerprint_status ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {room.fingerprint_status ? 'ONLINE' : 'STANDBY'}
-                        </span>
+                      {/* Bagian Bawah: Sewa / bulan, Harga & Aksi Edit/Hapus */}
+                      <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                        <div>
+                          <span className="text-slate-400 font-medium block">Sewa / bulan</span>
+                          <span className="font-black text-slate-800 text-sm">
+                            Rp {room.price.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button 
+                            onClick={() => setRoomModal({ type: 'edit', data: room })}
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs"
+                            title="Edit Data Kamar"
+                          >
+                            <Edit size={13} className="mr-1" /> Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteRoom(room.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Hapus Kamar"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
-                {roomsLantai2.length === 0 && (
-                  <div className="col-span-full text-center py-8 text-slate-400 text-sm">
-                    Belum ada data kamar Lantai 2. Jalankan skrip SQL pembuat 19 kamar di atas.
+
+                {/* Tampilan bantuan jika belum ada kamar di database */}
+                {displayedRooms.length === 0 && (
+                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center col-span-full">
+                    <DoorOpen className="mx-auto text-slate-300 mb-2" size={44} />
+                    <h4 className="font-bold text-slate-700 text-sm mb-1">Belum Ada Kamar yang Tersedia</h4>
+                    <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto">
+                      Kamar belum terdaftar di database Neon. Klik tombol di bawah untuk menambah kamar perdana.
+                    </p>
+                    <button 
+                      onClick={() => setRoomModal({ type: 'add', data: {} })} 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center shadow-md transition"
+                    >
+                      <Plus size={14} className="mr-1.5" /> Tambah Kamar Baru
+                    </button>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* ===================================================================== */}
-            {/* DENAH LANTAI 3: 3 KAMAR */}
-            {/* ===================================================================== */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 gap-2">
-                <div>
-                  <h3 className="font-black text-lg text-slate-800 flex items-center">
-                    <Home className="mr-2 text-indigo-600" size={22}/> Denah Kamar: Lantai 3 (3 Kamar)
-                  </h3>
-                  <p className="text-xs text-slate-500">Peta visual denah kamar dan jatuh tempo sewa lantai tiga (Rooftop)</p>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-bold">
-                  <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-500 mr-1.5"></span> Terisi ({roomsLantai3.filter(r => r.status === 'occupied').length})</span>
-                  <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-300 mr-1.5"></span> Kosong ({roomsLantai3.filter(r => r.status === 'available').length})</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {roomsLantai3.map(room => {
-                  const resident = users.find(u => u.room_id === room.id && u.role === 'resident');
-                  const residentBill = bills.find(b => b.user_id === resident?.id);
-                  const isPaid = resident?.is_fingerprint_active;
-
-                  return (
-                    <div 
-                      key={room.id}
-                      className={`p-4 rounded-xl border-2 transition-all flex flex-col justify-between ${
-                        room.status === 'occupied' 
-                          ? 'border-indigo-200 bg-gradient-to-br from-indigo-50/50 to-purple-50/30' 
-                          : 'border-dashed border-slate-200 bg-slate-50/50'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-black text-xl text-slate-800">{room.number}</span>
-                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                            room.status === 'occupied' 
-                              ? 'bg-indigo-600 text-white shadow-xs' 
-                              : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {room.status === 'occupied' ? 'TERISI' : 'KOSONG'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-medium mb-3 truncate">{room.name}</p>
-
-                        {room.status === 'occupied' && resident ? (
-                          <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs space-y-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <UserCheck size={13} className="mr-1 text-indigo-500" /> Penyewa
-                              </span>
-                              <span className="font-black text-slate-800 truncate max-w-[120px]">{resident.name}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <Calendar size={13} className="mr-1 text-slate-400" /> Tgl Masuk
-                              </span>
-                              <span className="font-semibold text-slate-700">
-                                {resident.created_at ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                              <span className="text-slate-400 flex items-center font-bold">
-                                <CreditCard size={13} className="mr-1 text-amber-500" /> Jatuh Tempo
-                              </span>
-                              <span className={`font-bold ${isPaid ? 'text-emerald-600' : 'text-rose-600 animate-pulse'}`}>
-                                {residentBill?.due_date 
-                                  ? new Date(residentBill.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) 
-                                  : (resident.active_until ? new Date(resident.active_until).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-')}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl bg-white/60">
-                            <p className="font-bold text-slate-600">Rp {room.price.toLocaleString('id-ID')}</p>
-                            <span className="text-[11px]">Siap Dihuni</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                        <span>Fingerprint:</span>
-                        <span className={`font-bold ${room.fingerprint_status ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {room.fingerprint_status ? 'ONLINE' : 'STANDBY'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           </div>
