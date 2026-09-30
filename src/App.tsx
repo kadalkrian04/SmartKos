@@ -9,66 +9,93 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-// Fungsi helper untuk merender badge metode pembayaran (GoPay, ShopeePay, DANA, OVO, QRIS, Tunai)
-const renderPaymentBadge = (methodRaw: string) => {
+// Fungsi helper untuk merender badge metode pembayaran dengan format (QRIS DANA, QRIS GoPay, QRIS BCA, dll)
+const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
   const method = (methodRaw || 'QRIS').trim();
   const mUpper = method.toUpperCase();
 
-  if (mUpper.includes('GOPAY')) {
-    return (
-      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center shadow-xs">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-        GoPay
-      </span>
-    );
-  }
-  if (mUpper.includes('SHOPEE') || mUpper.includes('SPAY')) {
-    return (
-      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-orange-50 text-orange-700 border border-orange-300 inline-flex items-center shadow-xs">
-        <span className="w-2 h-2 rounded-full bg-orange-500 mr-1.5"></span>
-        ShopeePay
-      </span>
-    );
-  }
-  if (mUpper.includes('OVO')) {
-    return (
-      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-purple-50 text-purple-700 border border-purple-300 inline-flex items-center shadow-xs">
-        <span className="w-2 h-2 rounded-full bg-purple-500 mr-1.5"></span>
-        OVO
-      </span>
-    );
-  }
+  let badgeContent = null;
+
   if (mUpper.includes('DANA')) {
-    return (
+    badgeContent = (
       <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-sky-50 text-sky-700 border border-sky-300 inline-flex items-center shadow-xs">
         <span className="w-2 h-2 rounded-full bg-sky-500 mr-1.5"></span>
-        DANA
+        QRIS DANA
       </span>
     );
-  }
-  if (mUpper.includes('TUNAI') || mUpper.includes('MANUAL')) {
-    return (
+  } else if (mUpper.includes('GOPAY')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+        QRIS GoPay
+      </span>
+    );
+  } else if (mUpper.includes('BCA')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-300 inline-flex items-center shadow-xs">
+        <Smartphone size={12} className="mr-1 text-blue-600" />
+        QRIS BCA
+      </span>
+    );
+  } else if (mUpper.includes('SHOPEE') || mUpper.includes('SPAY')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-orange-50 text-orange-700 border border-orange-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-orange-500 mr-1.5"></span>
+        QRIS ShopeePay
+      </span>
+    );
+  } else if (mUpper.includes('OVO')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-purple-50 text-purple-700 border border-purple-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-purple-500 mr-1.5"></span>
+        QRIS OVO
+      </span>
+    );
+  } else if (mUpper.includes('MANDIRI') || mUpper.includes('LIVIN')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-300 inline-flex items-center shadow-xs">
+        <Smartphone size={12} className="mr-1 text-indigo-600" />
+        QRIS Mandiri
+      </span>
+    );
+  } else if (mUpper.includes('BRI') || mUpper.includes('BRIMO')) {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-cyan-50 text-cyan-700 border border-cyan-300 inline-flex items-center shadow-xs">
+        <Smartphone size={12} className="mr-1 text-cyan-600" />
+        QRIS BRI
+      </span>
+    );
+  } else if (mUpper.includes('TUNAI') || mUpper.includes('MANUAL')) {
+    badgeContent = (
       <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center shadow-xs">
         <Banknote size={12} className="mr-1 text-amber-600" />
         Tunai / Manual
       </span>
     );
-  }
-  if (mUpper.includes('BCA') || mUpper.includes('MANDIRI') || mUpper.includes('BRI')) {
-    return (
-      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-300 inline-flex items-center shadow-xs">
-        <Smartphone size={12} className="mr-1 text-blue-600" />
-        {method}
+  } else {
+    badgeContent = (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center">
+        <Smartphone size={12} className="mr-1 text-slate-500" />
+        {method.toUpperCase().startsWith('QRIS') ? method : `QRIS ${method}`}
       </span>
     );
   }
 
-  return (
-    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center">
-      <Smartphone size={12} className="mr-1 text-slate-500" />
-      {method || 'QRIS'}
-    </span>
-  );
+  if (onEditClick) {
+    return (
+      <button 
+        type="button" 
+        onClick={onEditClick}
+        className="group inline-flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer text-left"
+        title="Klik untuk ubah channel (DANA, GoPay, BCA, dll)"
+      >
+        {badgeContent}
+        <Edit size={12} className="text-slate-400 group-hover:text-blue-600 transition" />
+      </button>
+    );
+  }
+
+  return badgeContent;
 };
 
 export default function App() {
@@ -104,6 +131,7 @@ export default function App() {
   const [billModal, setBillModal] = useState<any>(null);
   const [expenseModal, setExpenseModal] = useState(false);
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
+  const [changeMethodModal, setChangeMethodModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
   const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
@@ -429,6 +457,20 @@ export default function App() {
       fetchDashboardData();
     } catch (error) { showToast('Gagal set lunas tagihan', 'error'); }
     finally { setIsLoading(false); }
+  };
+
+  const handleChangePaymentMethod = async (billId: number, newMethod: string) => {
+    setIsLoading(true);
+    try {
+      await axios.put(`/api/bills?id=${billId}`, { payment_method: newMethod });
+      showToast(`Metode pembayaran berhasil diubah ke ${newMethod}`, 'success');
+      setChangeMethodModal(null);
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal memperbarui metode pembayaran', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePayQRIS = async (bill: any) => {
@@ -1284,7 +1326,8 @@ export default function App() {
                               </span>
                             </td>
                             <td className="p-4">
-                              {renderPaymentBadge(b.payment_method)}
+                              {}
+                              {renderPaymentBadge(b.payment_method, () => setChangeMethodModal(b))}
                             </td>
                             <td className="p-4 font-black text-emerald-600 font-mono text-sm">
                               Rp {Number(b.nominal).toLocaleString('id-ID')}
@@ -2086,6 +2129,53 @@ export default function App() {
               <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded mb-4 text-lg font-bold text-red-600" required />
               <div className="flex gap-2"><button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
             </form>
+          </div>
+        )}
+
+        {}
+        {/* Modal Cepat Ubah Metode Pembayaran */}
+        {changeMethodModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <CreditCard size={24} />
+              </div>
+              <h3 className="font-black text-slate-800 text-base mb-1">Pilih Detail Metode Pembayaran</h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Invoice: <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{changeMethodModal.ref_id}</span>
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-bold">
+                {[
+                  { label: 'QRIS DANA', badge: 'bg-sky-50 text-sky-700 border-sky-300' },
+                  { label: 'QRIS GoPay', badge: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+                  { label: 'QRIS BCA', badge: 'bg-blue-50 text-blue-700 border-blue-300' },
+                  { label: 'QRIS ShopeePay', badge: 'bg-orange-50 text-orange-700 border-orange-300' },
+                  { label: 'QRIS OVO', badge: 'bg-purple-50 text-purple-700 border-purple-300' },
+                  { label: 'QRIS Mandiri', badge: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
+                  { label: 'QRIS BRI', badge: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
+                  { label: 'Tunai / Manual', badge: 'bg-amber-50 text-amber-700 border-amber-300' }
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => handleChangePaymentMethod(changeMethodModal.id, item.label)}
+                    disabled={isLoading}
+                    className={`p-3 rounded-xl border font-bold transition flex items-center justify-center ${item.badge} hover:shadow-xs hover:scale-[1.02]`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setChangeMethodModal(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition"
+              >
+                Batal
+              </button>
+            </div>
           </div>
         )}
       </div>

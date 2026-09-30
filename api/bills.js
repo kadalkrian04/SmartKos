@@ -66,6 +66,11 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: 'Tagihan berhasil ditandai Lunas' });
       }
 
+      if (payment_method !== undefined && !action) {
+        await sql`UPDATE bills SET payment_method = ${payment_method} WHERE id = ${id}`;
+        return res.status(200).json({ success: true, message: 'Metode pembayaran diperbarui' });
+      }
+
       if (nominal !== undefined) {
         await sql`UPDATE bills SET nominal = ${parseInt(nominal, 10)} WHERE id = ${id}`;
         return res.status(200).json({ success: true, message: 'Nominal tagihan diperbarui' });

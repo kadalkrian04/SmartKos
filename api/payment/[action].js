@@ -38,22 +38,25 @@ export default async function handler(req, res) {
       const methodUpper = (rawMethod + ' ' + payloadString).toUpperCase();
 
       let detectedMethod = 'QRIS';
-      if (methodUpper.includes('GOPAY')) {
-        detectedMethod = 'GoPay';
-      } else if (methodUpper.includes('SHOPEE') || methodUpper.includes('SPAY')) {
-        detectedMethod = 'ShopeePay';
-      } else if (methodUpper.includes('OVO')) {
-        detectedMethod = 'OVO';
-      } else if (methodUpper.includes('DANA')) {
-        detectedMethod = 'DANA';
+      if (methodUpper.includes('DANA')) {
+        detectedMethod = 'QRIS DANA';
+      } else if (methodUpper.includes('GOPAY')) {
+        detectedMethod = 'QRIS GoPay';
       } else if (methodUpper.includes('BCA')) {
-        detectedMethod = 'BCA QRIS';
+        detectedMethod = 'QRIS BCA';
+      } else if (methodUpper.includes('SHOPEE') || methodUpper.includes('SPAY')) {
+        detectedMethod = 'QRIS ShopeePay';
+      } else if (methodUpper.includes('OVO')) {
+        detectedMethod = 'QRIS OVO';
       } else if (methodUpper.includes('LIVIN') || methodUpper.includes('MANDIRI')) {
-        detectedMethod = 'Livin Mandiri';
+        detectedMethod = 'QRIS Mandiri';
       } else if (methodUpper.includes('BRIMO') || methodUpper.includes('BRI')) {
-        detectedMethod = 'BRImo';
+        detectedMethod = 'QRIS BRI';
+      } else if (methodUpper.includes('BNI')) {
+        detectedMethod = 'QRIS BNI';
       } else if (rawMethod && rawMethod.toString().trim() !== '') {
-        detectedMethod = rawMethod.toString().trim();
+        const clean = rawMethod.toString().trim();
+        detectedMethod = clean.toUpperCase().startsWith('QRIS') ? clean : `QRIS ${clean}`;
       }
 
       const pLower = payloadString.toLowerCase();
