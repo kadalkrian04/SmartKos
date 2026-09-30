@@ -1,137 +1,456 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  Users, DoorOpen, CreditCard, Settings, LogOut, 
+  CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
+  Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
+  Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock
+} from 'lucide-react';
 import axios from 'axios';
 
-// ==========================================
-// KOMPONEN IKON SVG (RINGAN & AMAN TANPA CRASH)
-// ==========================================
-const Icon = ({ name, className = "w-5 h-5" }: { name: string; className?: string }) => {
-  switch (name) {
-    case 'trending-up':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>;
-    case 'trending-down':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>;
-    case 'clock':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-    case 'home':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
-    case 'door':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4h8a2 2 0 012 2v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6a2 2 0 012-2z M14 12h.01" /></svg>;
-    case 'user':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>;
-    case 'phone':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>;
-    case 'plus':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
-    case 'edit':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
-    case 'trash':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
-    case 'logout':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>;
-    case 'fingerprint':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.07 1.003-4.27 1.003-6.552a9.96 9.96 0 00-1.003-4.32" /></svg>;
-    case 'receipt':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>;
-    case 'settings':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-    case 'refresh':
-      return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
-    default:
-      return null;
-  }
-};
-
 export default function App() {
-  // State User & Autentikasi
-  const [user, setUser] = useState<any>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [authForm, setAuthForm] = useState({ username: '', password: '', name: '' });
-
-  // Navigasi Utama Admin
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tenants' | 'expenses' | 'logs' | 'settings'>('dashboard');
-  const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
-  const [settingSubTab, setSettingSubTab] = useState<'tokopay' | 'hardware'>('tokopay');
-
-  // State Data Database
-  const [rooms, setRooms] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('smartkos_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch(e) { return null; }
+  });
+  
+  const [view, setView] = useState(() => {
+    return localStorage.getItem('smartkos_view') || 'login';
+  }); 
+  
+  const [lastRegUsername, setLastRegUsername] = useState('');
+  
   const [users, setUsers] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
-  const [settings, setSettings] = useState<{ merchantId: string; secretKey: string }>({ merchantId: '', secretKey: '' });
-
-  // State Modal & Aksi
-  const [roomModal, setRoomModal] = useState<{ isOpen: boolean; type: 'add' | 'edit'; data: any } | null>(null);
-  const [expenseModal, setExpenseModal] = useState(false);
-  const [billModal, setBillModal] = useState<any>(null);
-  const [enrollModal, setEnrollModal] = useState<{ active: boolean; timeLeft: number } | null>(null);
-  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; title: string; message: string } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [settings, setSettings] = useState({ tokopay_merchant_id: '', tokopay_secret_key: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [isScanningFP, setIsScanningFP] = useState(false);
+  const [enrollCountdown, setEnrollCountdown] = useState(60);
+  
+  const [toast, setToast] = useState<{msg: string, type: string} | null>(null);
+  const [paymentModal, setPaymentModal] = useState<any>(null);
+  const [qrisData, setQrisData] = useState<string | null>(null);
+  const [roomModal, setRoomModal] = useState<any>(null);
+  const [billModal, setBillModal] = useState<any>(null);
+  const [expenseModal, setExpenseModal] = useState(false);
+  const [userFpModal, setUserFpModal] = useState<any>(null);
+  const [residentEditFpModal, setResidentEditFpModal] = useState(false);
+  const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
+  const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
+  const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
+  const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
 
-  // Ambil Data Sesi Login saat Pertama Load
-  useEffect(() => {
-    const savedUser = localStorage.getItem('smartkos_user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {}
-    }
-  }, []);
-
-  // Fetch Semua Data Terkait
-  const fetchData = async () => {
-    try {
-      const [resRooms, resUsers, resBills, resLogs, resExp] = await Promise.all([
-        axios.get('/api/rooms').catch(() => ({ data: [] })),
-        axios.get('/api/users').catch(() => ({ data: [] })),
-        axios.get('/api/bills').catch(() => ({ data: [] })),
-        axios.get('/api/logs').catch(() => ({ data: [] })),
-        axios.get('/api/expenses').catch(() => ({ data: [] }))
-      ]);
-      setRooms(Array.isArray(resRooms.data) ? resRooms.data : []);
-      setUsers(Array.isArray(resUsers.data) ? resUsers.data : []);
-      setBills(Array.isArray(resBills.data) ? resBills.data : []);
-      setLogs(Array.isArray(resLogs.data) ? resLogs.data : []);
-      setExpenses(Array.isArray(resExp.data) ? resExp.data : []);
-    } catch (e) {
-      console.error("Gagal load data:", e);
-    }
+  const showToast = (msg: string, type = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
   useEffect(() => {
-    if (user) {
-      fetchData();
-      const interval = setInterval(fetchData, 4000);
-      return () => clearInterval(interval);
+    if (currentUser) {
+      localStorage.setItem('smartkos_user', JSON.stringify(currentUser));
+      localStorage.setItem('smartkos_view', view);
+    } else {
+      localStorage.removeItem('smartkos_user');
+      localStorage.removeItem('smartkos_view');
     }
-  }, [user]);
+  }, [currentUser, view]);
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  // Format Rupiah
-  const formatRupiah = (num: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num || 0);
-  };
-
-  // Format Tanggal Singkat
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
+  const fetchDashboardData = async (isManual = false) => {
+    if (!currentUser) return;
+    setIsLoading(true);
     try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    } catch {
-      return dateStr;
+      if(currentUser.role === 'admin') {
+         const [resUsers, resRooms, resBills, resLogs, resSettings, resExpenses] = await Promise.all([
+           axios.get('/api/users'), 
+           axios.get('/api/rooms'), 
+           axios.get('/api/bills'), 
+           axios.get('/api/logs'), 
+           axios.get('/api/settings'),
+           axios.get('/api/expenses').catch(() => ({ data: [] }))
+         ]);
+         setUsers(resUsers.data || []); 
+         setRooms(resRooms.data || []); 
+         setBills(resBills.data || []); 
+         setLogs(resLogs.data || []); 
+         setSettings(resSettings.data || {});
+         setExpenses(resExpenses.data || []);
+         if (isManual) showToast('Data dashboard berhasil diperbarui', 'success');
+      } else {
+         const [resRooms, resBills] = await Promise.all([axios.get('/api/rooms'), axios.get('/api/bills')]);
+         setRooms(resRooms.data || []); 
+         setBills(resBills.data || []); 
+         
+         const myBill = resBills.data?.find((b: any) => b.user_id === currentUser.id);
+         if (!myBill && currentUser.active_until === null && currentUser.room_id) {
+             const updatedUser = {...currentUser, room_id: null};
+             setCurrentUser(updatedUser);
+             showToast('Waktu pembayaran habis (10 Menit). Kamar dibatalkan otomatis.', 'error');
+         } else if (isManual) {
+             showToast('Data berhasil diperbarui', 'success');
+         }
+      }
+    } catch (error) {
+      showToast('Gagal memuat data dari server.', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ==========================================
-  // LOGIKA PENGURUTAN ALAMI & PEMBAGIAN LANTAI
-  // ==========================================
-  // Mengurutkan 1, 2, 3 ... 9, 10, 11 secara alami
+  useEffect(() => {
+    if (view !== 'login' && view !== 'register') fetchDashboardData();
+  }, [view]);
+
+  useEffect(() => {
+    let intervalId: any;
+
+    if (paymentModal) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await axios.get('/api/bills');
+          const updatedBill = response.data?.find((b: any) => b.id === paymentModal.id);
+          
+          if (updatedBill && updatedBill.status === 'lunas') {
+            setPaymentModal(null);
+            const updatedUser = {
+               ...currentUser, 
+               is_fingerprint_active: true, 
+               active_until: new Date(Date.now() + (37 * 24 * 60 * 60 * 1000)).toISOString()
+            };
+            setCurrentUser(updatedUser);
+            showToast('🎉 Pembayaran Berhasil! Akses Kamar & Sidik Jari telah aktif.', 'success');
+            fetchDashboardData();
+            clearInterval(intervalId); 
+          }
+        } catch (error) {}
+      }, 3000);
+    }
+
+    return () => { if (intervalId) clearInterval(intervalId); };
+  }, [paymentModal]);
+
+  const handleLogin = async (e: any) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const response = await axios.post('/api/auth/login', { 
+        username: e.target.username.value, password: e.target.password.value 
+      });
+      if (response.data.success) {
+        setCurrentUser(response.data.user);
+        setView(response.data.user.role === 'admin' ? 'admin_dashboard' : 'resident_dashboard');
+        showToast(`Selamat datang, ${response.data.user.name}`, 'success');
+      } else {
+        showToast(response.data.message, 'error');
+      }
+    } catch (error) { showToast('Koneksi server gagal.', 'error'); } 
+    finally { setIsLoading(false); }
+  };
+
+  const handleRegister = async (e: any) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const newUsername = e.target.username.value;
+    try {
+      const response = await axios.post('/api/auth/register', { 
+        name: e.target.name.value, username: newUsername, password: e.target.password.value 
+      });
+      if (response.data.success) {
+        setLastRegUsername(newUsername);
+        showToast('Pendaftaran berhasil! Silakan login.', 'success');
+        setView('login');
+      } else { showToast(response.data.message, 'error'); }
+    } catch (error) { showToast('Gagal mendaftar akun.', 'error'); } 
+    finally { setIsLoading(false); }
+  };
+
+  const logout = () => { 
+    setCurrentUser(null); 
+    setView('login'); 
+    localStorage.removeItem('smartkos_user');
+    localStorage.removeItem('smartkos_view');
+  };
+
+  const handleSaveRoom = async (e: any) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = { number: fd.get('number'), name: fd.get('name'), price: parseInt(fd.get('price') as string, 10) };
+    setIsLoading(true);
+    try {
+      if (roomModal.type === 'add') await axios.post('/api/rooms', payload);
+      else await axios.put(`/api/rooms?id=${roomModal.data.id}`, payload);
+      showToast('Data kamar disimpan', 'success'); setRoomModal(null); fetchDashboardData();
+    } catch (error) { showToast('Gagal menyimpan kamar', 'error'); } 
+    finally { setIsLoading(false); }
+  };
+
+  const handleDeleteRoom = async (id: number) => {
+    if(!window.confirm('Yakin hapus kamar ini? Pastikan tidak ada penghuni!')) return;
+    try {
+      await axios.delete(`/api/rooms?id=${id}`);
+      showToast('Kamar dihapus', 'success'); fetchDashboardData();
+    } catch (error: any) { 
+      showToast(error.response?.data?.message || 'Gagal menghapus kamar', 'error'); 
+    }
+  };
+
+  const handleToggleRoomFingerprint = async (id: number, currentStatus: boolean) => {
+    try {
+      await axios.put(`/api/rooms?id=${id}`, { fingerprint_status: !currentStatus });
+      fetchDashboardData();
+      showToast(`Hardware Fingerprint ${!currentStatus ? 'Diaktifkan' : 'Dinonaktifkan'}`, 'success');
+    } catch (error) { showToast('Gagal update hardware', 'error'); }
+  };
+
+  const handleDeleteHistory = async (id: number) => {
+    if(!window.confirm('Yakin ingin menghapus riwayat pembayaran ini?')) return;
+    try {
+      await axios.delete(`/api/bills?id=${id}`);
+      showToast('Riwayat berhasil dihapus', 'success'); 
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal menghapus riwayat', 'error'); }
+  };
+
+  const handleClearLogs = async () => {
+    if(!window.confirm('Yakin ingin menghapus SEMUA catatan log pintu?')) return;
+    setIsLoading(true);
+    try {
+      await axios.delete('/api/logs');
+      showToast('Semua log berhasil dibersihkan', 'success');
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal membersihkan log', 'error'); }
+    finally { setIsLoading(false); }
+  };
+
+  const handleSaveDevice = async (roomId: number, deviceId: string) => {
+    setIsLoading(true);
+    try {
+      await axios.put(`/api/rooms?id=${roomId}`, { device_id: deviceId });
+      showToast('Perangkat Fingerprint berhasil dihubungkan!', 'success');
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal menghubungkan perangkat', 'error'); }
+    finally { setIsLoading(false); }
+  };
+
+  const handleSaveExpense = async (e: any) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const fd = new FormData(e.target);
+    try {
+      await axios.post('/api/expenses', {
+        title: fd.get('title'),
+        nominal: fd.get('nominal'),
+        category: fd.get('category'),
+        expense_date: fd.get('expense_date')
+      });
+      showToast('Pengeluaran berhasil dicatat!', 'success');
+      setExpenseModal(false);
+      fetchDashboardData();
+    } catch (err) {
+      showToast('Gagal menyimpan pengeluaran', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: number) => {
+    if (!window.confirm('Hapus catatan pengeluaran ini?')) return;
+    try {
+      await axios.delete(`/api/expenses?id=${id}`);
+      showToast('Pengeluaran dihapus', 'success');
+      fetchDashboardData();
+    } catch (err) {
+      showToast('Gagal menghapus', 'error');
+    }
+  };
+
+  const handleSaveSettings = async (e: any) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/settings', { merchant_id: e.target.merchant_id.value, secret_key: e.target.secret_key.value });
+      showToast('Setting API TokoPay tersimpan', 'success'); fetchDashboardData();
+    } catch (error) { showToast('Gagal simpan setting', 'error'); }
+  };
+
+  const handleTestTokoPay = async () => {
+    showToast('Menghubungi Server TokoPay...', 'info');
+    try {
+      const response = await axios.get('/api/payment/test');
+      if (response.data.success) showToast(response.data.message, 'success');
+      else showToast(response.data.message, 'error');
+    } catch (error) { showToast('Error koneksi API TokoPay', 'error'); }
+  };
+
+  const handleChooseRoom = async (roomId: number) => {
+    try {
+      const response = await axios.post('/api/users?action=choose-room', { userId: currentUser.id, roomId });
+      if (response.data.success) {
+        showToast('Kamar dipesan! Segera lunasi dalam waktu 10 Menit.', 'success');
+        setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
+      } else { showToast(response.data.message, 'error'); }
+    } catch (error) { showToast('Gagal memproses kamar. Coba lagi.', 'error'); }
+  };
+
+  const handleGenerateBills = async () => {
+    setIsLoading(true);
+    try {
+      await axios.post('/api/bills'); showToast('Tagihan otomatis dibuat', 'success'); fetchDashboardData();
+    } catch (error) { showToast('Gagal membuat tagihan', 'error'); } 
+    finally { setIsLoading(false); }
+  };
+
+  const handleEditBill = async (e: any) => {
+    e.preventDefault();
+    try {
+      await axios.put(`/api/bills?id=${billModal.id}`, { nominal: e.target.nominal.value });
+      showToast('Tagihan diperbarui', 'success'); setBillModal(null); fetchDashboardData();
+    } catch (error) { showToast('Gagal update', 'error'); }
+  };
+
+  const handleSetLunasManual = async (billId: number, userId: number) => {
+    if(!window.confirm('TokoPay Error? Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
+    setIsLoading(true);
+    try {
+      await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId });
+      showToast('Tagihan dilunasi manual! Akses kamar aktif.', 'success');
+      fetchDashboardData();
+    } catch (error) { showToast('Gagal set lunas tagihan', 'error'); }
+    finally { setIsLoading(false); }
+  };
+
+  const handlePayQRIS = async (bill: any) => {
+    setPaymentModal(bill); setQrisData(null);
+    try {
+      const response = await axios.post('/api/payment/qris', { refId: bill.ref_id, nominal: bill.nominal });
+      if (response.data.success) {
+        setQrisData(response.data.qr_url);
+        if(response.data.new_ref_id) {
+           setPaymentModal({...bill, ref_id: response.data.new_ref_id});
+           fetchDashboardData();
+        }
+      } else {
+        showToast(response.data.message || 'Gagal koneksi TokoPay', 'error');
+        setPaymentModal(null);
+      }
+    } catch (error) { 
+      showToast('Error API TokoPay', 'error');
+      setPaymentModal(null);
+    }
+  };
+
+  const handleStartEnrollment = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post('/api/users?action=start-enroll', { userId: currentUser.id });
+      if (response.data.success) {
+        setCurrentUser({ ...currentUser, fingerprint_id: null });
+        setIsScanningFP(true);
+        setEnrollCountdown(90);
+        showToast('Mode rekam aktif! Tempelkan jari Anda ke sensor di pintu sekarang.', 'info');
+      } else {
+        showToast(response.data.message, 'error');
+      }
+    } catch (error: any) {
+      showToast(error.response?.data?.message || 'Gagal memulai pendaftaran', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelEnrollment = async () => {
+    try {
+      await axios.post('/api/users?action=cancel-enroll', { userId: currentUser.id });
+    } catch (e) {}
+    setIsScanningFP(false);
+    showToast('Perekaman sidik jari dibatalkan.', 'info');
+  };
+
+  useEffect(() => {
+    let timer: any;
+    let pollInterval: any;
+
+    if (isScanningFP) {
+      timer = setInterval(() => {
+        setEnrollCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsScanningFP(false);
+            showToast('Waktu pendaftaran habis. Silakan coba lagi.', 'error');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await axios.get('/api/users');
+          const myData = res.data?.find((u: any) => u.id === currentUser.id);
+          
+          if (myData && myData.fingerprint_id) {
+            setCurrentUser({ 
+              ...currentUser, 
+              fingerprint_id: myData.fingerprint_id, 
+              is_fingerprint_active: true 
+            });
+            setIsScanningFP(false);
+            clearInterval(pollInterval);
+            clearInterval(timer);
+            setEnrollSuccessModal({ slot_id: myData.fingerprint_id });
+            fetchDashboardData();
+          }
+        } catch (e) {}
+      }, 2000);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [isScanningFP, currentUser]);
+
+  const handleResetResidentFp = async () => {
+    setIsLoading(true);
+    try {
+      await axios.put('/api/users', {
+        userId: currentUser.id,
+        fingerprint_id: null
+      });
+      const updatedUser = { ...currentUser, fingerprint_id: null };
+      setCurrentUser(updatedUser);
+      setConfirmResetFpModal(false);
+      showToast('Sidik jari berhasil direset. Silakan daftarkan jari baru.', 'success');
+      fetchDashboardData();
+    } catch (error) {
+      showToast('Gagal menghapus sidik jari', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const totalPemasukan = bills
+    .filter(b => b.status === 'lunas')
+    .reduce((sum, b) => sum + (Number(b.nominal) || 0), 0);
+
+  const totalPengeluaran = expenses
+    .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
+
+  const labaBersih = totalPemasukan - totalPengeluaran;
+
+  const unpaidTenantsSet = new Set(
+    bills.filter(b => b.status === 'pending').map(b => b.user_id)
+  );
+  const totalBelumLunas = unpaidTenantsSet.size;
+
+  const totalKamarCount = rooms.length || 1;
+  const kamarTerisiCount = rooms.filter(r => r.status === 'occupied').length;
+  const kamarKosongCount = rooms.filter(r => r.status === 'available').length;
+  const occupancyPercent = Math.round((kamarTerisiCount / totalKamarCount) * 100);
+
+  // Pengurutan nomor kamar alami (1, 2, 3 ... 9, 10, 11, dst)
   const sortedRooms = [...rooms].sort((a, b) => {
     const numA = parseInt((a.number || '').toString().replace(/\D/g, ''), 10);
     const numB = parseInt((b.number || '').toString().replace(/\D/g, ''), 10);
@@ -141,16 +460,17 @@ export default function App() {
     return (a.number || '').toString().localeCompare((b.number || '').toString(), undefined, { numeric: true });
   });
 
-  // Penentuan Lantai: Kamar 1-16 (Lt 2), Kamar 17-19 (Lt 3)
+  // Penentuan lantai: Kamar 1-16 (Lt 2), Kamar 17-19 (Lt 3)
   const getRoomFloor = (r: any): number => {
     const nameLower = (r.name || '').toLowerCase();
     if (nameLower.includes('lt 3') || nameLower.includes('lantai 3')) return 3;
     if (nameLower.includes('lt 2') || nameLower.includes('lantai 2')) return 2;
-
     const num = parseInt((r.number || '').toString().replace(/\D/g, ''), 10);
     if (!isNaN(num)) {
       if ((num >= 17 && num <= 19) || (num >= 301 && num <= 399)) return 3;
       if ((num >= 1 && num <= 16) || (num >= 201 && num <= 299)) return 2;
+      if (num >= 17) return 3;
+      if (num <= 16) return 2;
     }
     return 2;
   };
@@ -158,635 +478,394 @@ export default function App() {
   const roomsLantai2 = sortedRooms.filter(r => getRoomFloor(r) === 2);
   const roomsLantai3 = sortedRooms.filter(r => getRoomFloor(r) === 3);
 
-  const displayedRooms = floorFilter === 'lt2'
-    ? roomsLantai2
-    : floorFilter === 'lt3'
-      ? roomsLantai3
+  // Kamar yang ditampilkan sesuai tab filter
+  const displayedRooms = floorFilter === 'lt2' 
+    ? roomsLantai2 
+    : floorFilter === 'lt3' 
+      ? roomsLantai3 
       : sortedRooms;
 
-  // Metrik Statistik Dashboard
-  const totalPemasukan = bills
-    .filter(b => b.status === 'lunas')
-    .reduce((acc, curr) => acc + Number(curr.nominal || 0), 0);
+  const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
+  const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
-  const totalPengeluaran = expenses
-    .reduce((acc, curr) => acc + Number(curr.nominal || 0), 0);
+  const renderAuth = () => (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border">
+        <div className="text-center mb-6">
+          <div className="bg-blue-600 p-3 rounded-full text-white inline-block mb-3"><Fingerprint size={32} /></div>
+          <h1 className="text-2xl font-black text-slate-800">SmartKos System</h1>
+          <p className="text-slate-500 text-sm">Masuk / Daftar Area Penghuni</p>
+        </div>
 
-  const activeResidents = users.filter(u => u.role === 'resident' && u.room_id);
-  const lunasCount = activeResidents.filter(u => u.is_fingerprint_active).length;
-  const unpaidCount = activeResidents.filter(u => !u.is_fingerprint_active).length;
-  const occupiedCount = rooms.filter(r => r.status === 'occupied').length;
-  const emptyCount = rooms.filter(r => r.status === 'available').length;
-  const totalRoomCount = rooms.length || 1;
-  const occupancyPercent = Math.round((occupiedCount / totalRoomCount) * 100);
-
-  // ==========================================
-  // HANDLERS (LOGIN, KAMAR, PENGELUARAN, ENROLL)
-  // ==========================================
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const res = await axios.post(url, authForm);
-      if (res.data.success) {
-        if (authMode === 'login') {
-          setUser(res.data.user);
-          localStorage.setItem('smartkos_user', JSON.stringify(res.data.user));
-          showToast(`Selamat datang, ${res.data.user.name}!`, 'success');
-        } else {
-          showToast('Registrasi berhasil! Silakan masuk.', 'success');
-          setAuthMode('login');
-        }
-      } else {
-        showToast(res.data.message || 'Gagal autentikasi', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.response?.data?.message || 'Terjadi kesalahan sistem', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('smartkos_user');
-    setUser(null);
-  };
-
-  // Simpan Kamar Baru / Edit Kamar dengan Pilihan Lantai
-  const handleSaveRoom = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const floorVal = (fd.get('floor') as string) || 'Lantai 2';
-    let baseName = ((fd.get('name') as string) || '').replace(/\s*-\s*(Lt|Lantai)\s*\d+/gi, '').trim();
-    if (!baseName) baseName = 'Standard';
-    const finalName = `${baseName} - ${floorVal}`;
-
-    const payload = {
-      number: fd.get('number'),
-      name: finalName,
-      price: parseInt(fd.get('price') as string, 10)
-    };
-
-    setIsLoading(true);
-    try {
-      if (roomModal?.type === 'add') {
-        await axios.post('/api/rooms', payload);
-        showToast('Kamar baru berhasil ditambahkan', 'success');
-      } else if (roomModal?.data?.id) {
-        await axios.put(`/api/rooms?id=${roomModal.data.id}`, payload);
-        showToast('Data kamar berhasil diperbarui', 'success');
-      }
-      setRoomModal(null);
-      fetchData();
-    } catch {
-      showToast('Gagal menyimpan kamar', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteRoom = async (id: number) => {
-    if (!window.confirm('Yakin ingin menghapus kamar ini?')) return;
-    try {
-      await axios.delete(`/api/rooms?id=${id}`);
-      showToast('Kamar berhasil dihapus', 'success');
-      fetchData();
-    } catch {
-      showToast('Gagal menghapus kamar', 'error');
-    }
-  };
-
-  const handleSaveExpense = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    try {
-      await axios.post('/api/expenses', {
-        title: fd.get('title'),
-        nominal: parseInt(fd.get('nominal') as string, 10),
-        category: fd.get('category'),
-        expense_date: fd.get('expense_date')
-      });
-      showToast('Pengeluaran berhasil dicatat', 'success');
-      setExpenseModal(false);
-      fetchData();
-    } catch {
-      showToast('Gagal mencatat pengeluaran', 'error');
-    }
-  };
-
-  const handleStartEnroll = async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      const res = await axios.post('/api/users?action=start-enroll', { userId: user.id });
-      if (res.data.success) {
-        setEnrollModal({ active: true, timeLeft: 60 });
-        showToast('Alat siaga! Silakan tempelkan jari ke sensor di pintu.', 'info');
-      } else {
-        showToast(res.data.message || 'Gagal memulai perekaman', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.response?.data?.message || 'Gagal memulai pendaftaran', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDirectActivate = async (userId: number) => {
-    try {
-      await axios.put('/api/users', { userId, is_fingerprint_active: true, fingerprint_id: userId.toString() });
-      showToast('Akses sidik jari langsung diaktifkan!', 'success');
-      fetchData();
-    } catch {
-      showToast('Gagal mengaktifkan sidik jari', 'error');
-    }
-  };
-
-  // ==========================================
-  // TAMPILAN JIKA BELUM LOGIN
-  // ==========================================
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
-        {toast && (
-          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-white font-medium text-sm ${toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
-            {toast.message}
-          </div>
-        )}
-
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-xl border border-slate-200">
-          <div className="text-center mb-6">
-            <div className="inline-flex p-3 bg-blue-50 text-blue-600 rounded-2xl mb-3">
-              <Icon name="door" className="w-8 h-8" />
-            </div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">SmartKos IoT</h1>
-            <p className="text-xs text-slate-500 mt-1">Sistem Pintu & Manajemen Kos Terpadu</p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            {authMode === 'register' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Nama Lengkap</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Budi Santoso"
-                  value={authForm.name}
-                  onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Username</label>
-              <input
-                type="text"
-                required
-                placeholder="admin atau username Anda"
-                value={authForm.username}
-                onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Password</label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={authForm.password}
-                onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-md transition disabled:opacity-50"
-            >
-              {isLoading ? 'Memproses...' : authMode === 'login' ? 'Masuk ke Sistem' : 'Daftar Akun Baru'}
-            </button>
+        {view === 'login' ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow hover:bg-blue-700">Login</button>
+            <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline">Daftar Baru</button></p>
           </form>
-
-          <div className="mt-5 text-center">
-            <button
-              onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-              className="text-xs text-blue-600 font-semibold hover:underline"
-            >
-              {authMode === 'login' ? 'Belum punya akun? Daftar sebagai Penghuni' : 'Sudah punya akun? Masuk di sini'}
-            </button>
-          </div>
-        </div>
+        ) : (
+          <form onSubmit={handleRegister} className="space-y-4">
+            <input type="text" name="name" placeholder="Nama Lengkap" autoComplete="name" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="text" name="username" placeholder="Username Baru" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <input type="password" name="password" placeholder="Password Baru" autoComplete="new-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700">Daftar Akun</button>
+            <p className="text-center text-sm text-slate-600 mt-4">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline">Login</button></p>
+          </form>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
 
-  // ==========================================
-  // TAMPILAN DASHBOARD PENGELOLA (ADMIN)
-  // ==========================================
-  return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans flex flex-col md:flex-row">
-      {/* Toast Alert */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-white font-medium text-sm ${toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
-          {toast.message}
+  const renderAdmin = () => (
+    <div className="flex min-h-screen bg-slate-50">
+      <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex">
+        <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
+          <Fingerprint className="text-blue-400" size={28} />
+          <span className="font-bold text-xl">AdminKos</span>
         </div>
-      )}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto text-sm">
+          {[
+            { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
+            { id: 'admin_users', icon: Users, label: 'Data Penghuni' },
+            { id: 'admin_bills', icon: CreditCard, label: 'Tagihan & Keuangan' },
+            { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
+            { id: 'admin_history', icon: History, label: 'Riwayat Transaksi' },
+            { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
+            { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
+          ].map(item => (
+            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${view === item.id ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+              <item.icon size={18} /> <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition"><LogOut size={18} className="mr-3" /> Keluar</button></div>
+      </div>
 
-      {/* Sidebar Navigasi */}
-      <aside className="w-full md:w-64 bg-white border-r border-slate-200 p-5 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center gap-3 px-2 py-3 mb-6">
-            <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-sm">
-              <Icon name="door" className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="font-black text-lg tracking-tight leading-none text-slate-800">SmartKos</h2>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Sistem IoT</span>
-            </div>
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div>
+            <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
+            <p className="text-xs text-slate-500">Monitoring Hunian, Akses Pintu Biometrik & Arus Kas</p>
           </div>
-
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon name="home" className="w-5 h-5" />
-              Dashboard Utama
-            </button>
-
-            <button
-              onClick={() => setActiveTab('tenants')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'tenants' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon name="user" className="w-5 h-5" />
-              Kelola Penyewa
-            </button>
-
-            <button
-              onClick={() => setActiveTab('expenses')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'expenses' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon name="receipt" className="w-5 h-5" />
-              Pengeluaran
-            </button>
-
-            <button
-              onClick={() => setActiveTab('logs')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'logs' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon name="clock" className="w-5 h-5" />
-              Log Pintu Realtime
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon name="settings" className="w-5 h-5" />
-              Pengaturan Terpadu
-            </button>
-          </nav>
+          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold text-sm">
+            <RefreshCcw size={16} className={`mr-2 ${isLoading && 'animate-spin'}`}/> Segarkan
+          </button>
         </div>
 
-        <div className="pt-4 border-t border-slate-100">
-          <div className="flex items-center justify-between px-2 mb-3">
-            <div>
-              <p className="font-bold text-xs text-slate-800">{user.name}</p>
-              <p className="text-[10px] text-slate-400 capitalize">{user.role}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Keluar"
-              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
-            >
-              <Icon name="logout" className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Konten Halaman */}
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {/* ======================================================== */}
-        {/* TAB 1: DASHBOARD UTAMA (DESAIN SAMA PERSIS DENGAN GAMBAR) */}
-        {/* ======================================================== */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-8">
-            {/* 4 Kartu Metrik di Atas */}
+        {/* ========================================================================= */}
+        {/* VIEW 1: DASHBOARD UTAMA DENGAN 4 METRIK DAN DENAH LANTAI 2 & 3 */}
+        {/* ========================================================================= */}
+        {view === 'admin_dashboard' && (
+          <div className="space-y-6">
+            {/* 4 KARTU STATISTIK UTAMA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Kartu 1: Pemasukan (Navy Elegan) */}
-              <div className="bg-[#1e293b] text-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400">Pemasukan</span>
-                  <div className="p-1.5 bg-slate-800 rounded-lg text-emerald-400">
-                    <Icon name="trending-up" className="w-4 h-4" />
+              {/* 1. KARTU PEMASUKAN */}
+              <div className="bg-[#1e293b] text-white p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-300 tracking-wider uppercase">
+                    PEMASUKAN
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300">
+                    <TrendingUp size={16} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black tracking-tight">{formatRupiah(totalPemasukan)}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{lunasCount} dari {activeResidents.length} penyewa lunas</p>
+                  <div className="text-2xl font-black tracking-tight mb-1">
+                    Rp {totalPemasukan.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {totalLunasCount} dari {totalTenantsWithRooms} penyewa lunas
+                  </span>
                 </div>
               </div>
 
-              {/* Kartu 2: Pengeluaran */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-500">Pengeluaran</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setExpenseModal(true)}
-                      className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-md transition"
+              {/* 2. KARTU PENGELUARAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PENGELUARAN
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => setExpenseModal(true)} 
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition" 
                       title="Catat Pengeluaran"
                     >
-                      + Catat
+                      <Plus size={14} />
                     </button>
-                    <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500">
-                      <Icon name="trending-down" className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                      <TrendingDown size={16} />
                     </div>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(totalPengeluaran)}</h3>
-                  <p className="text-xs text-slate-500 mt-1">Bulan ini</p>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp {totalPengeluaran.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">Bulan ini</span>
                 </div>
               </div>
 
-              {/* Kartu 3: Belum Lunas */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-500">Belum Lunas</span>
-                  <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500">
-                    <Icon name="clock" className="w-4 h-4" />
+              {/* 3. KARTU BELUM LUNAS */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    BELUM LUNAS
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Clock size={16} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-800 tracking-tight">{unpaidCount} <span className="text-sm font-semibold text-slate-500">penyewa</span></h3>
-                  <p className="text-xs text-slate-500 mt-1">Butuh ditagih</p>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1 flex items-baseline gap-1.5">
+                    <span>{totalBelumLunas}</span>
+                    <span className="text-sm font-semibold text-slate-500">penyewa</span>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">Butuh ditagih</span>
                 </div>
               </div>
 
-              {/* Kartu 4: Hunian */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-500">Hunian</span>
-                  <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
-                    <Icon name="home" className="w-4 h-4" />
+              {/* 4. KARTU HUNIAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    HUNIAN
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                    <Home size={16} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-800 tracking-tight">
-                    {occupiedCount}/{rooms.length} <span className="text-sm font-semibold text-slate-500">kamar terisi</span>
-                  </h3>
-                  <div className="w-full bg-slate-100 rounded-full h-2 my-2 overflow-hidden">
-                    <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${occupancyPercent}%` }}></div>
+                  <div className="text-base font-black text-slate-800 tracking-tight mb-2">
+                    {kamarTerisiCount}/{totalKamarCount} <span className="text-xs font-semibold text-slate-400">kamar terisi</span>
                   </div>
-                  <p className="text-xs text-slate-500">{occupancyPercent}% hunian</p>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-1.5">
+                    <div 
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">{occupancyPercent}% hunian</span>
                 </div>
               </div>
             </div>
 
-            {/* Bagian Status Kamar (Denah Visual) */}
+            {/* STATUS KAMAR & TOMBOL TAMBAH KAMAR */}
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-slate-800">Status Kamar</h2>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {rooms.length} kamar · {emptyCount} kosong · {unpaidCount} belum lunas
+                  <h3 className="text-xl font-black text-slate-800">Status Kamar</h3>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    {sortedRooms.length} kamar · {kamarKosongCount} kosong · {totalBelumLunas} belum lunas
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Filter Tab Lantai Otomatis & Dinamis */}
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  {/* Filter Lantai Otomatis & Dinamis */}
                   <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                    <button
-                      onClick={() => setFloorFilter('all')}
+                    <button 
+                      onClick={() => setFloorFilter('all')} 
                       className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Semua ({sortedRooms.length})
                     </button>
-                    <button
-                      onClick={() => setFloorFilter('lt2')}
+                    <button 
+                      onClick={() => setFloorFilter('lt2')} 
                       className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 2 ({roomsLantai2.length})
                     </button>
-                    <button
-                      onClick={() => setFloorFilter('lt3')}
+                    <button 
+                      onClick={() => setFloorFilter('lt3')} 
                       className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 3 ({roomsLantai3.length})
                     </button>
                   </div>
 
-                  {/* Tombol Tambah Kamar Baru */}
-                  <button
-                    onClick={() => setRoomModal({ isOpen: true, type: 'add', data: {} })}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+                  <button 
+                    onClick={() => setRoomModal({ type: 'add', data: {} })} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition"
                   >
-                    <Icon name="plus" className="w-4 h-4" />
-                    Tambah Kamar
+                    <Plus size={15} className="mr-1.5" /> Tambah Kamar
                   </button>
                 </div>
               </div>
 
-              {/* Grid Kartu Kamar */}
+              {/* GRID DENAH STATUS KAMAR URUT ALAMI */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
                   const resident = users.find(u => u.room_id === room.id && u.role === 'resident');
                   const residentBill = bills.find(b => b.user_id === resident?.id);
                   const isPaid = resident?.is_fingerprint_active;
                   const isOccupied = room.status === 'occupied' && resident;
-                  const floorLabel = `Lantai ${getRoomFloor(room)}`;
+                  const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
+
+                  const masukDateStr = resident?.created_at 
+                    ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '-';
+                  
+                  const dueRaw = residentBill?.due_date || resident?.active_until;
+                  const dueDateStr = dueRaw 
+                    ? new Date(dueRaw).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '-';
 
                   return (
-                    <div key={room.id} className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:border-slate-300 transition flex flex-col justify-between">
+                    <div 
+                      key={room.id}
+                      className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition p-4 flex flex-col justify-between"
+                    >
                       <div>
-                        {/* Header Kartu: Ikon, Nomor Kamar & Badge Status */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
-                              <Icon name="door" className="w-5 h-5" />
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
+                              <DoorOpen size={18} />
                             </div>
                             <div>
-                              <h3 className="font-black text-slate-800 text-base leading-none">Kamar {room.number}</h3>
-                              <p className="text-[11px] font-semibold text-slate-400 mt-1">{floorLabel}</p>
+                              <h4 className="font-bold text-sm text-slate-800 leading-tight">
+                                Kamar {room.number}
+                              </h4>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                {floorLabel}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Badge Status Kamar */}
                           {isOccupied ? (
                             isPaid ? (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                • Lunas
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200/60 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> Lunas
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-100">
-                                • Belum Lunas
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200/60 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
                               </span>
                             )
                           ) : (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">
-                              • Kosong
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span> Kosong
                             </span>
                           )}
                         </div>
 
-                        {/* Isi Tengah: Informasi Penyewa ATAU Kotak Kosong */}
                         {isOccupied ? (
-                          <div className="space-y-2 my-4 pt-1">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                              <Icon name="user" className="w-4 h-4 text-slate-400" />
-                              <span>{resident.name}</span>
+                          <div className="space-y-1.5 my-3 text-xs">
+                            <div className="flex items-center text-slate-700 font-semibold truncate">
+                              <UserCheck size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{resident.name}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                              <Icon name="phone" className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{resident.username || 'Tidak ada kontak'}</span>
+                            <div className="flex items-center text-slate-500 font-normal">
+                              <Phone size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span>{resident.username ? `@${resident.username}` : '-'}</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 flex justify-between pt-1">
-                              <span>Masuk: {formatDate(resident.created_at)}</span>
-                              <span>Tempo: {formatDate(residentBill?.due_date)}</span>
+                            <div className="flex items-center text-[11px] text-slate-400 pt-0.5">
+                              <Calendar size={13} className="mr-2 text-slate-400 flex-shrink-0" />
+                              <span>Masuk: {masukDateStr}</span>
+                              <span className="mx-1.5">·</span>
+                              <span className={`font-semibold ${isPaid ? 'text-slate-600' : 'text-amber-600'}`}>
+                                JT: {dueDateStr}
+                              </span>
                             </div>
                           </div>
                         ) : (
-                          <div className="my-5 py-4 bg-slate-50 rounded-xl flex items-center justify-center text-xs font-bold text-slate-400">
+                          <div className="my-3 py-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs font-semibold text-slate-400">
                             Kosong
                           </div>
                         )}
                       </div>
 
-                      {/* Footer Kartu: Harga Sewa & Tombol Edit/Hapus */}
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-400">Sewa / bulan</p>
-                          <p className="font-extrabold text-slate-800 text-sm">{formatRupiah(room.price)}</p>
+                          <span className="text-slate-400 font-medium block">Sewa / bulan</span>
+                          <span className="font-black text-slate-800 text-sm">
+                            Rp {room.price.toLocaleString('id-ID')}
+                          </span>
                         </div>
-
                         <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => setRoomModal({ isOpen: true, type: 'edit', data: room })}
-                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-lg text-xs flex items-center gap-1 transition"
+                          <button 
+                            onClick={() => setRoomModal({ type: 'edit', data: room })}
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs"
+                            title="Edit Data Kamar"
                           >
-                            <Icon name="edit" className="w-3.5 h-3.5" />
-                            Edit
+                            <Edit size={13} className="mr-1" /> Edit
                           </button>
-                          <button
+                          <button 
                             onClick={() => handleDeleteRoom(room.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Hapus Kamar"
                           >
-                            <Icon name="trash" className="w-3.5 h-3.5" />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
                     </div>
                   );
                 })}
+
+                {displayedRooms.length === 0 && (
+                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center col-span-full">
+                    <DoorOpen className="mx-auto text-slate-300 mb-2" size={44} />
+                    <h4 className="font-bold text-slate-700 text-sm mb-1">Belum Ada Kamar yang Tersedia</h4>
+                    <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto">
+                      Kamar belum terdaftar di database Neon. Klik tombol di bawah untuk menambah kamar perdana.
+                    </p>
+                    <button 
+                      onClick={() => setRoomModal({ type: 'add', data: {} })} 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center shadow-md transition"
+                    >
+                      <Plus size={14} className="mr-1.5" /> Tambah Kamar Baru
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TAB 2: KELOLA PENYEWA */}
-        {/* ======================================================== */}
-        {activeTab === 'tenants' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-800">Daftar Penyewa Kos</h2>
-              <p className="text-xs text-slate-500">Pantau status sewa dan akses sidik jari penghuni</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase">
-                    <tr>
-                      <th className="p-3.5">Nama Penyewa</th>
-                      <th className="p-3.5">Kamar</th>
-                      <th className="p-3.5">Status Sewa</th>
-                      <th className="p-3.5">ID Jari di Sensor</th>
-                      <th className="p-3.5 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {users.filter(u => u.role === 'resident').map(res => {
-                      const roomObj = rooms.find(r => r.id === res.room_id);
-                      return (
-                        <tr key={res.id} className="hover:bg-slate-50/50">
-                          <td className="p-3.5 font-bold text-slate-800">{res.name} ({res.username})</td>
-                          <td className="p-3.5">{roomObj ? `Kamar ${roomObj.number}` : '<Belum Pilih Kamar>'}</td>
-                          <td className="p-3.5">
-                            {res.is_fingerprint_active ? (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">Aktif / Lunas</span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px]">Belum Lunas</span>
-                            )}
-                          </td>
-                          <td className="p-3.5 font-mono text-slate-600">ID #{res.fingerprint_id || '-'}</td>
-                          <td className="p-3.5 text-right space-x-2">
-                            <button
-                              onClick={() => handleDirectActivate(res.id)}
-                              className="px-2.5 py-1 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
-                            >
-                              Aktifkan Akses
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* TAB 3: PENGELUARAN */}
-        {/* ======================================================== */}
-        {activeTab === 'expenses' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        {view === 'admin_expenses' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-xl font-black text-slate-800">Catatan Pengeluaran Kos</h2>
-                <p className="text-xs text-slate-500">Kelola biaya listrik, air, wifi, dan perawatan</p>
+                <h3 className="font-black text-xl text-slate-800">Catatan Pengeluaran Kos</h3>
+                <p className="text-xs text-slate-500">Mencatat biaya listrik, air, internet, perbaikan, dan kebersihan</p>
               </div>
-              <button
-                onClick={() => setExpenseModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+              <button 
+                onClick={() => setExpenseModal(true)} 
+                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm"
               >
-                <Icon name="plus" className="w-4 h-4" />
-                Catat Pengeluaran
+                <Plus size={16} className="mr-2" /> Catat Pengeluaran Baru
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b">
                   <tr>
-                    <th className="p-3.5">Tanggal</th>
-                    <th className="p-3.5">Keterangan</th>
-                    <th className="p-3.5">Kategori</th>
-                    <th className="p-3.5 text-right">Nominal</th>
+                    <th className="p-4">Tanggal</th>
+                    <th className="p-4">Keperluan / Keterangan</th>
+                    <th className="p-4">Kategori</th>
+                    <th className="p-4">Nominal</th>
+                    <th className="p-4">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {expenses.length === 0 ? (
-                    <tr><td colSpan={4} className="p-5 text-center text-slate-400">Belum ada catatan pengeluaran</td></tr>
-                  ) : (
-                    expenses.map(exp => (
-                      <tr key={exp.id}>
-                        <td className="p-3.5 text-slate-500">{formatDate(exp.expense_date)}</td>
-                        <td className="p-3.5 font-bold text-slate-800">{exp.title}</td>
-                        <td className="p-3.5"><span className="px-2 py-0.5 bg-slate-100 rounded-md text-[10px] font-bold">{exp.category}</span></td>
-                        <td className="p-3.5 text-right font-bold text-rose-600">{formatRupiah(exp.nominal)}</td>
-                      </tr>
-                    ))
+                <tbody className="divide-y">
+                  {expenses.map(exp => (
+                    <tr key={exp.id} className="hover:bg-slate-50">
+                      <td className="p-4 text-slate-500">{new Date(exp.expense_date || exp.created_at).toLocaleDateString('id-ID')}</td>
+                      <td className="p-4 font-bold text-slate-800">{exp.title}</td>
+                      <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
+                      <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
+                      <td className="p-4">
+                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition">
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {expenses.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran. Klik tombol di atas untuk menambah.</td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -794,239 +873,720 @@ export default function App() {
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TAB 4: LOG PINTU */}
-        {/* ======================================================== */}
-        {activeTab === 'logs' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-800">Log Aktivitas Pintu</h2>
-                <p className="text-xs text-slate-500">Pantau sensor dan riwayat ketukan pintu realtime</p>
-              </div>
-              <button
-                onClick={fetchData}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5"
-              >
-                <Icon name="refresh" className="w-4 h-4" />
-                Segarkan
-              </button>
-            </div>
+        {view === 'admin_users' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
+            <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b">
+                  <tr>
+                    <th className="p-4">Nama</th>
+                    <th className="p-4">Username</th>
+                    <th className="p-4">Kamar</th>
+                    <th className="p-4">Status Sidik Jari</th>
+                    <th className="p-4">Status Tagihan</th>
+                    <th className="p-4">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{u.name}</td>
+                      <td className="p-4 text-slate-500">{u.username}</td>
+                      <td className="p-4 font-bold">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
+                      <td className="p-4">
+                        {u.fingerprint_id ? (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
+                            <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                            Belum Didaftarkan
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {!u.room_id ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
+                        ) : !u.is_fingerprint_active ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
+                        ) : (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <button
+                          onClick={async () => {
+                            try {
+                              setIsLoading(true);
+                              await axios.put('/api/users', {
+                                userId: u.id,
+                                fingerprint_id: u.id.toString(),
+                                is_fingerprint_active: true
+                              });
+                              showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
+                              fetchDashboardData();
+                            } catch(e) {
+                              showToast('Gagal mengaktifkan', 'error');
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                        >
+                          <ShieldCheck size={14} className="mr-1.5" />
+                          {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
+          </div>
+        )}
 
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-xs">
-              {logs.length === 0 ? (
-                <p className="p-6 text-center text-xs text-slate-400">Belum ada riwayat pintu tercatat</p>
-              ) : (
-                logs.slice(0, 30).map(log => (
-                  <div key={log.id} className="p-4 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                        <Icon name="door" className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-800">{log.action}</p>
-                        <p className="text-[10px] text-slate-400">{formatDate(log.timestamp)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+        {view === 'admin_rooms' && (
+          <div className="space-y-4">
+            <button onClick={() => setRoomModal({ type: 'add', data: {} })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Tambah Kamar Baru</button>
+            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">No. Kamar</th><th className="p-4">Nama</th><th className="p-4">Harga (Rp)</th><th className="p-4">Status</th><th className="p-4">HW Fingerprint</th><th className="p-4">Aksi</th></tr></thead>
+                <tbody className="divide-y">
+                  {sortedRooms.map(r => (
+                    <tr key={r.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{r.number}</td><td className="p-4">{r.name}</td><td className="p-4 text-blue-600 font-bold">{r.price.toLocaleString()}</td>
+                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{r.status}</span></td>
+                      <td className="p-4">
+                        <button onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)} className={`px-3 py-1 text-xs font-bold rounded-full ${r.fingerprint_status ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
+                          {r.fingerprint_status ? 'NYALA' : 'MATI'}
+                        </button>
+                      </td>
+                      <td className="p-4 flex gap-2">
+                        <button onClick={() => setRoomModal({ type: 'edit', data: r })} className="text-blue-600 hover:bg-blue-50 p-2 rounded"><Edit size={16}/></button>
+                        <button onClick={() => handleDeleteRoom(r.id)} className="text-red-600 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TAB 5: PENGATURAN TERPADU (TOKOPAY + HARDWARE FINGERPRINT) */}
-        {/* ======================================================== */}
-        {activeTab === 'settings' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-800">Pengaturan Terpadu</h2>
-              <p className="text-xs text-slate-500">Konfigurasi Pembayaran Otomatis TokoPay & Perangkat Sensor</p>
-            </div>
-
-            {/* Sub-tab Pengaturan */}
-            <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
-              <button
-                onClick={() => setSettingSubTab('tokopay')}
-                className={`px-4 py-2 rounded-lg transition ${settingSubTab === 'tokopay' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
-              >
-                API TokoPay (QRIS)
-              </button>
-              <button
-                onClick={() => setSettingSubTab('hardware')}
-                className={`px-4 py-2 rounded-lg transition ${settingSubTab === 'hardware' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
-              >
-                Perangkat Fingerprint
-              </button>
-            </div>
-
-            {settingSubTab === 'tokopay' ? (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 max-w-lg space-y-4 shadow-xs">
-                <h3 className="font-bold text-sm text-slate-800">Konfigurasi Gateway TokoPay</h3>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Merchant ID TokoPay</label>
-                  <input
-                    type="text"
-                    value={settings.merchantId}
-                    onChange={(e) => setSettings({ ...settings, merchantId: e.target.value })}
-                    placeholder="Contoh: M240901..."
-                    className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Secret Key TokoPay</label>
-                  <input
-                    type="password"
-                    value={settings.secretKey}
-                    onChange={(e) => setSettings({ ...settings, secretKey: e.target.value })}
-                    placeholder="••••••••••••••••"
-                    className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-mono"
-                  />
-                </div>
-                <button
-                  onClick={() => showToast('Pengaturan API TokoPay tersimpan', 'success')}
-                  className="w-full py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition"
-                >
-                  Simpan Konfigurasi
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-                <h3 className="font-bold text-sm text-slate-800 mb-2">Daftar Pintu & Modul Sensor</h3>
-                <p className="text-xs text-slate-500 mb-4">Sistem 1 Hardware Melayani Multi-Kamar (Uji Coba Otomatis)</p>
-
-                <div className="divide-y divide-slate-100 text-xs">
-                  {rooms.map(r => (
-                    <div key={r.id} className="py-3 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-slate-800">Kamar {r.number}</span>
-                        <span className="text-slate-400 ml-2 font-mono">({r.device_id || `KAMAR-${r.number}`})</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                        Siaga / Online
-                      </span>
-                    </div>
+        {view === 'admin_bills' && (
+          <div className="space-y-4">
+            <button onClick={handleGenerateBills} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Generate Tagihan Bulan Ini</button>
+            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">ID User</th><th className="p-4">Ref TokoPay</th><th className="p-4">Nominal</th><th className="p-4">Status</th><th className="p-4">Jatuh Tempo</th><th className="p-4">Aksi</th></tr></thead>
+                <tbody className="divide-y">
+                  {bills.map(b => (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{users.find(u => u.id === b.user_id)?.name || `User #${b.user_id}`}</td><td className="p-4 font-mono text-xs">{b.ref_id}</td>
+                      <td className="p-4 font-bold text-red-600">Rp {b.nominal.toLocaleString()}</td>
+                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'lunas' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{b.status}</span></td>
+                      <td className="p-4">{new Date(b.due_date).toLocaleDateString()}</td>
+                      <td className="p-4 flex gap-2">
+                        {b.status === 'pending' && (
+                           <>
+                             <button onClick={() => handleSetLunasManual(b.id, b.user_id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded border border-green-200 text-xs font-bold">Set Lunas (Manual)</button>
+                             <button onClick={() => setBillModal(b)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-bold">Edit Nominal</button>
+                           </>
+                        )}
+                      </td>
+                    </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {view === 'admin_history' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
+            <div className="flex justify-between items-center mb-6">
+               <h3 className="font-bold text-lg flex items-center"><History className="mr-2 text-blue-600"/> Riwayat Pembayaran (Lunas)</h3>
+               <p className="text-sm text-slate-500">Pencatatan transaksi lunas</p>
+            </div>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Tanggal Tagihan</th><th className="p-4">Penghuni</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Aksi</th></tr></thead>
+                <tbody className="divide-y">
+                  {bills.filter(b => b.status === 'lunas').map(b => (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className="p-4">{new Date(b.created_at || b.due_date).toLocaleDateString()}</td>
+                      <td className="p-4 font-bold">{users.find(u => u.id === b.user_id)?.name || `User #${b.user_id}`}</td>
+                      <td className="p-4 font-mono text-xs text-slate-500">{b.ref_id}</td>
+                      <td className="p-4 font-bold text-green-600">Rp {b.nominal.toLocaleString()}</td>
+                      <td className="p-4">
+                        <button onClick={() => handleDeleteHistory(b.id)} className="text-red-600 hover:bg-red-50 p-2 rounded flex items-center text-xs font-bold"><Trash2 size={14} className="mr-1"/> Hapus</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
+          </div>
+        )}
+
+        {view === 'admin_logs' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+               <h3 className="font-bold text-lg flex items-center"><FileText className="mr-2 text-blue-600"/> Log Buka Pintu (Fingerprint)</h3>
+               <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
+            </div>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
+                <tbody className="divide-y">
+                  {logs.map(l => (
+                    <tr key={l.id} className="hover:bg-slate-50">
+                      <td className="p-4 whitespace-nowrap">{new Date(l.timestamp).toLocaleString()}</td>
+                      <td className="p-4 font-bold">{users.find(u => u.id === l.user_id)?.name || 'Unknown'}</td>
+                      <td className="p-4 text-slate-600">{l.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
+          </div>
+        )}
+
+        {view === 'admin_settings' && (
+          <div className="space-y-6 max-w-4xl">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 flex items-center">
+                    <Settings className="mr-2.5 text-blue-600" size={24}/> Pengaturan Sistem & Integrasi
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola gerbang pembayaran TokoPay (QRIS) dan koneksi perangkat IoT pintu kamar
+                  </p>
+                </div>
+
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button 
+                    onClick={() => setSettingsTab('tokopay')} 
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <ShieldCheck size={14} className="mr-1.5" /> API TokoPay (QRIS)
+                  </button>
+                  <button 
+                    onClick={() => setSettingsTab('devices')} 
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <Cpu size={14} className="mr-1.5" /> Perangkat Fingerprint
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {settingsTab === 'tokopay' && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className="border-b pb-4 mb-6">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <CreditCard className="mr-2 text-blue-600" size={18} /> Integrasi Pembayaran QRIS Otomatis
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Masukkan kredensial akun TokoPay Anda agar invoice tagihan anak kos otomatis menghasilkan QRIS real-time.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Merchant ID TokoPay
+                    </label>
+                    <input 
+                      type="text" 
+                      name="merchant_id" 
+                      defaultValue={settings.tokopay_merchant_id} 
+                      placeholder="Contoh: M240101XXXXX"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Secret Key TokoPay
+                    </label>
+                    <input 
+                      type="password" 
+                      name="secret_key" 
+                      defaultValue={settings.tokopay_secret_key} 
+                      placeholder="Masukkan Secret Key TokoPay"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
+                  </div>
+
+                  <div className="pt-4 flex flex-wrap items-center gap-3">
+                    <button 
+                      type="submit" 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition"
+                    >
+                      <Save size={16} className="mr-2"/> Simpan Konfigurasi
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={handleTestTokoPay} 
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center transition border border-slate-200"
+                    >
+                      <RefreshCcw size={15} className="mr-2 text-slate-500"/> Uji Koneksi API
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {settingsTab === 'devices' && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                <div className="border-b pb-4">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <Wifi className="mr-2 text-blue-600" size={18} /> Koneksi Perangkat Fingerprint (IoT)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Atur Device ID perangkat ESP8266 pada masing-masing pintu kamar. Jika menggunakan 1 alat uji coba di meja, cukup gunakan ID default <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">KAMAR-A1</span>.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b">
+                      <tr>
+                        <th className="p-3.5">Kamar</th>
+                        <th className="p-3.5">Device ID Pintu (ESP8266)</th>
+                        <th className="p-3.5 text-center">Status Hardware</th>
+                        <th className="p-3.5 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sortedRooms.map(r => (
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition">
+                          <td className="p-3.5">
+                            <span className="font-black text-slate-800 text-sm block">Kamar {r.number}</span>
+                            <span className="text-[11px] text-slate-400">{r.name}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <form 
+                              onSubmit={(e: any) => { 
+                                e.preventDefault(); 
+                                handleSaveDevice(r.id, e.target.device_id.value); 
+                              }} 
+                              className="flex items-center gap-2 max-w-xs"
+                            >
+                              <input 
+                                type="text" 
+                                name="device_id" 
+                                defaultValue={r.device_id || `KAMAR-${r.number}`} 
+                                placeholder="Ex: KAMAR-201" 
+                                className="p-2 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono outline-none focus:ring-1 focus:ring-blue-500 flex-1" 
+                              />
+                              <button 
+                                type="submit" 
+                                className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs"
+                                title="Simpan Device ID"
+                              >
+                                Simpan
+                              </button>
+                            </form>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <button 
+                              onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition inline-flex items-center ${
+                                r.fingerprint_status 
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
+                                  : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                              }`}
+                              title="Klik untuk ubah status online/offline hardware"
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${r.fingerprint_status ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                              {r.fingerprint_status ? 'ONLINE' : 'OFFLINE'}
+                            </button>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className="text-[11px] text-slate-400">
+                              {r.device_id ? 'Terhubung' : 'Standby'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {sortedRooms.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400 text-xs">
+                            Belum ada kamar yang terdaftar. Tambahkan kamar terlebih dahulu di Dashboard Utama.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
           </div>
         )}
-      </main>
 
-      {/* ======================================================== */}
-      {/* MODAL TAMBAH / EDIT KAMAR (DENGAN DROPDOWN PILIH LANTAI) */}
-      {/* ======================================================== */}
-      {roomModal?.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200">
-            <h3 className="font-black text-base mb-4 text-slate-800">
-              {roomModal.type === 'add' ? 'Tambah Kamar Baru' : 'Edit Data Kamar'}
-            </h3>
-
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Nomor Kamar</label>
-                <input
-                  type="text"
-                  name="number"
-                  defaultValue={roomModal.data.number || ''}
-                  placeholder="Contoh: 1, 2, atau 16"
-                  className="w-full p-2.5 text-xs font-bold border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                  required
-                />
+        {expenseModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveExpense} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
+              <div className="flex items-center space-x-3 mb-4 border-b pb-3">
+                <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
+                  <Receipt size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">Catat Pengeluaran Baru</h3>
+                  <p className="text-xs text-slate-500">Biaya operasional & pemeliharaan</p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Pilih Lantai</label>
-                <select
-                  name="floor"
-                  defaultValue={roomModal.data?.id ? (getRoomFloor(roomModal.data) === 3 ? 'Lantai 3' : 'Lantai 2') : 'Lantai 2'}
-                  className="w-full p-2.5 text-xs font-bold border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="Lantai 2">Lantai 2 (Kamar 1 - 16)</option>
-                  <option value="Lantai 3">Lantai 3 (Kamar 17 - 19)</option>
-                </select>
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Keperluan / Keterangan</label>
+                  <input type="text" name="title" placeholder="Contoh: Token Listrik Lt 2" className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-rose-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nominal (Rp)</label>
+                  <input type="number" name="nominal" placeholder="Contoh: 250000" className="w-full p-2.5 text-sm border rounded-xl font-mono font-bold text-rose-600 bg-slate-50 outline-none focus:ring-2 focus:ring-rose-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Kategori</label>
+                  <select name="category" className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none">
+                    <option value="Listrik & Air">Listrik & Air</option>
+                    <option value="Internet / WiFi">Internet / WiFi</option>
+                    <option value="Kebersihan">Kebersihan</option>
+                    <option value="Perbaikan / Maintenance">Perbaikan / Maintenance</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal</label>
+                  <input type="date" name="expense_date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-2.5 text-sm border rounded-xl bg-slate-50 outline-none" required />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Tipe Kamar</label>
-                <input
-                  type="text"
-                  name="name"
-                  defaultValue={(roomModal.data.name || '').replace(/\s*-\s*(Lt|Lantai)\s*\d+/gi, '') || 'Standard'}
-                  placeholder="Contoh: Standard AC"
-                  className="w-full p-2.5 text-xs border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                  required
-                />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 shadow-md">Simpan</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {roomModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-xl w-full max-w-sm">
+              <h3 className="font-bold text-lg mb-4">{roomModal.type === 'add' ? 'Tambah Kamar' : 'Edit Kamar'}</h3>
+              <input type="text" name="number" defaultValue={roomModal.data.number} placeholder="Nomor Kamar (ex: 201)" className="w-full p-2 border rounded mb-3" required />
+              <input type="text" name="name" defaultValue={roomModal.data.name} placeholder="Nama Tipe Kamar" className="w-full p-2 border rounded mb-3" required />
+              <input type="number" name="price" defaultValue={roomModal.data.price} placeholder="Harga Sewa / Bulan" className="w-full p-2 border rounded mb-4" required />
+              <div className="flex gap-2"><button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
+            </form>
+          </div>
+        )}
+        
+        {billModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleEditBill} className="bg-white p-6 rounded-xl w-full max-w-sm">
+              <h3 className="font-bold text-lg mb-2">Edit Nominal Tagihan</h3>
+              <p className="text-sm text-slate-500 mb-4">User ID: {billModal.user_id}</p>
+              <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded mb-4 text-lg font-bold text-red-600" required />
+              <div className="flex gap-2"><button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderResident = () => {
+    if (!currentUser.room_id) {
+      return (
+        <div className="min-h-screen bg-slate-100 p-4 md:p-8">
+          <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
+             <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
+             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={16} className="mr-2"/> Keluar</button>
+          </nav>
+          <div className="max-w-4xl mx-auto">
+             <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
+               <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser.name}!</h2>
+               <p className="text-slate-600">Silakan pilih kamar kosong di bawah ini untuk mulai menyewa.</p>
+             </div>
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+               {sortedRooms.filter(r => r.status === 'available').map(room => (
+                 <div key={room.id} className="bg-white p-6 rounded-xl shadow border border-slate-200 text-center hover:border-blue-400 transition">
+                   <h3 className="text-3xl font-black text-slate-800 mb-2">{room.number}</h3>
+                   <p className="text-sm text-slate-500 mb-4">{room.name}</p>
+                   <p className="text-xl font-bold text-blue-600 mb-6">Rp {room.price.toLocaleString()}/bln</p>
+                   <button onClick={() => handleChooseRoom(room.id)} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow hover:bg-blue-700">Pilih Kamar Ini</button>
+                 </div>
+               ))}
+             </div>
+          </div>
+        </div>
+      );
+    }
+
+    const myBills = bills.filter(b => b.user_id === currentUser.id);
+    const pendingBill = myBills.find(b => b.status === 'pending');
+    const historyBills = myBills.filter(b => b.status === 'lunas'); 
+    const isActive = currentUser.is_fingerprint_active;
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+          <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
+          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={18} className="mr-2 hidden md:block"/> Keluar</button>
+        </nav>
+
+        <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
+           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
+           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+        </div>
+
+        <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
+          {view === 'resident_dashboard' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
+                  {pendingBill ? (
+                    <div className="text-center pt-4 flex-1 flex flex-col justify-center">
+                      <div>
+                        <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
+                        <h2 className="text-4xl font-black text-slate-800 my-4">Rp {pendingBill.nominal.toLocaleString()}</h2>
+                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {new Date(pendingBill.due_date).toLocaleDateString()}</p>
+                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center pt-8 flex-1 flex flex-col justify-center">
+                      <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                      <span className="text-green-700 font-black text-xl block">Semua Tagihan Lunas</span>
+                      <p className="text-slate-500 mt-2 text-sm">Terima kasih telah membayar tepat waktu.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                  <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><DoorOpen className="mr-2 text-blue-600"/> Status Kamar Anda</h3>
+                  <div className="pt-4 text-center flex-1 flex flex-col justify-center">
+                    {isActive ? (
+                      <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
+                        <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
+                        <div className="font-black text-lg">KAMAR AKTIF</div>
+                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{new Date(currentUser.active_until).toLocaleDateString()}</strong></p>
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
+                        <XCircle size={48} className="mx-auto mb-3 text-red-500"/>
+                        <div className="font-black text-lg">AKSES TERKUNCI</div>
+                        <p className="text-sm mt-1">Selesaikan pembayaran QRIS terlebih dahulu agar kamar dan sidik jari kembali aktif.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+             </div>
+          )}
+
+          {view === 'resident_fingerprint' && (
+             <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
+                <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
+                {!isActive ? (
+                    <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
+                      <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
+                      <p className="font-bold">Akses Kamar Terkunci</p>
+                      <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
+                    </div>
+                ) : currentUser.fingerprint_id ? (
+                    <div className="p-6">
+                       <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                       <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
+                       <p className="text-sm mt-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">
+                         Pintu kamar Anda sudah bisa dibuka kapan saja dengan menempelkan jari Anda ke sensor di pintu.
+                       </p>
+                       
+                       <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
+                          <button
+                            onClick={handleStartEnrollment}
+                            disabled={isLoading}
+                            className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition"
+                          >
+                            <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
+                          </button>
+                          <button
+                            onClick={handleResetResidentFp}
+                            disabled={isLoading}
+                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200"
+                          >
+                            <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
+                          </button>
+                       </div>
+                    </div>
+                ) : (
+                    <div className="p-6 flex flex-col items-center">
+                       <Fingerprint size={80} className={`mb-4 ${isScanningFP ? 'text-blue-500 animate-bounce' : 'text-slate-300'}`} />
+                       {isScanningFP ? (
+                           <div className="w-full max-w-md space-y-4">
+                             <div className="bg-gradient-to-b from-blue-50 to-indigo-50 border-2 border-blue-300 p-5 rounded-2xl shadow-sm text-left">
+                               <div className="flex justify-between items-center mb-3">
+                                 <span className="font-black text-sm text-blue-900 tracking-wide flex items-center">
+                                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping mr-2"></span>
+                                   ALAT SIAGA MEREKAM
+                                 </span>
+                                 <span className="px-3 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
+                                   {enrollCountdown}s
+                                 </span>
+                               </div>
+
+                               <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">1.</span>
+                                   <span><strong>Tempelkan jari</strong> ke sensor pintu.</span>
+                                 </p>
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">2.</span>
+                                   <span><strong>Angkat jari</strong> Anda dari sensor.</span>
+                                 </p>
+                                 <p className="flex items-start">
+                                   <span className="font-bold text-blue-600 mr-2">3.</span>
+                                   <span><strong>Tempelkan lagi jari yang sama</strong> sampai pintu terbuka!</span>
+                                 </p>
+                               </div>
+                             </div>
+
+                             <button
+                               onClick={handleCancelEnrollment}
+                               className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1"
+                             >
+                               Batalkan Perekaman
+                             </button>
+                           </div>
+                       ) : (
+                           <div className="w-full max-w-md space-y-4">
+                             <p className="text-slate-600 text-sm font-medium">Pilih salah satu cara termudah untuk mengaktifkan sidik jari kamar Anda:</p>
+                             
+                             <div className="space-y-3">
+                               <button 
+                                 onClick={handleStartEnrollment} 
+                                 disabled={isLoading} 
+                                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm"
+                               >
+                                 <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
+                               </button>
+
+                               <button 
+                                 onClick={async () => {
+                                   try {
+                                     setIsLoading(true);
+                                     await axios.put('/api/users', {
+                                       userId: currentUser.id,
+                                       fingerprint_id: currentUser.id.toString(),
+                                       is_fingerprint_active: true
+                                     });
+                                     setCurrentUser({ ...currentUser, fingerprint_id: currentUser.id.toString(), is_fingerprint_active: true });
+                                     showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
+                                     fetchDashboardData();
+                                   } catch(e) {
+                                     showToast('Gagal mengaktifkan', 'error');
+                                   } finally {
+                                     setIsLoading(false);
+                                   }
+                                 }}
+                                 disabled={isLoading} 
+                                 className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200"
+                               >
+                                 <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
+                               </button>
+                             </div>
+                           </div>
+                       )}
+                    </div>
+                )}
+             </div>
+          )}
+
+          {view === 'resident_history' && (
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+               <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
+               {historyBills.length > 0 ? (
+                 <div className="overflow-x-auto rounded-lg border border-slate-200">
+                   <table className="w-full text-left text-sm whitespace-nowrap">
+                     <thead className="bg-slate-100"><tr><th className="p-4">Bulan Tagihan</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Status</th></tr></thead>
+                     <tbody className="divide-y divide-slate-100">
+                       {historyBills.map(b => (
+                         <tr key={b.id} className="hover:bg-slate-50">
+                           <td className="p-4">{b.month}</td>
+                           <td className="p-4 font-mono text-xs text-slate-500">{b.ref_id}</td>
+                           <td className="p-4 font-bold text-slate-800">Rp {b.nominal.toLocaleString()}</td>
+                           <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               ) : (
+                 <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                   Belum ada riwayat pembayaran yang tercatat.
+                 </div>
+               )}
+             </div>
+          )}
+        </div>
+
+        {paymentModal && (
+          <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+              <h3 className="text-xl font-bold mb-1">Scan QRIS (TokoPay)</h3>
+              <p className="text-xs text-slate-500 font-mono mb-4">Ref: {paymentModal.ref_id}</p>
+              
+              <div className="bg-slate-100 p-2 rounded-xl mb-4 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
+                 {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2 text-blue-500" size={32}/> Memproses QR...</div>}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Harga Sewa / Bulan (Rp)</label>
-                <input
-                  type="number"
-                  name="price"
-                  defaultValue={roomModal.data.price || 750000}
-                  className="w-full p-2.5 text-xs font-mono font-bold text-blue-600 border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setRoomModal(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                onClick={() => setPaymentModal(null)}
+                className="w-full py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
               >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition"
-              >
-                Simpan
+                Tutup
               </button>
             </div>
-          </form>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* MODAL CATAT PENGELUARAN */}
-      {expenseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveExpense} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200">
-            <h3 className="font-black text-base mb-4 text-slate-800">Catat Pengeluaran Baru</h3>
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Keterangan Pengeluaran</label>
-                <input type="text" name="title" required placeholder="Contoh: Beli Token Listrik Utama" className="w-full p-2.5 text-xs border rounded-xl bg-slate-50" />
+        {enrollSuccessModal && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                <CheckCircle size={44} className="animate-pulse" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Nominal (Rp)</label>
-                <input type="number" name="nominal" required placeholder="Contoh: 250000" className="w-full p-2.5 text-xs font-mono font-bold border rounded-xl bg-slate-50" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Kategori</label>
-                <select name="category" className="w-full p-2.5 text-xs font-bold border rounded-xl bg-slate-50">
-                  <option value="Listrik">Listrik & Air</option>
-                  <option value="Internet">WiFi & Internet</option>
-                  <option value="Perbaikan">Perbaikan & Alat</option>
-                  <option value="Lainnya">Lain-lain</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Tanggal</label>
-                <input type="date" name="expense_date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-2.5 text-xs border rounded-xl bg-slate-50" />
-              </div>
+              <h3 className="font-black text-slate-800 text-2xl mb-2">Perekaman Sukses!</h3>
+              <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                Sidik jari Anda berhasil disimpan di sensor fisik pada <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Slot #{enrollSuccessModal.slot_id}</span>.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnrollSuccessModal(null);
+                  setView('resident_dashboard');
+                }}
+                className="w-full py-3.5 bg-green-600 text-white rounded-xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-600/30 transition"
+              >
+                Selesai & Ke Beranda
+              </button>
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Batal</button>
-              <button type="submit" className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-xs">Simpan</button>
-            </div>
-          </form>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="font-sans text-slate-800 bg-slate-100 min-h-screen">
+      {view === 'login' || view === 'register' ? renderAuth() : view.startsWith('admin') ? renderAdmin() : renderResident()}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50">
+           <div className={`px-6 py-4 rounded-xl shadow-xl font-bold flex items-center ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
+             {toast.type === 'error' ? <XCircle className="mr-3" /> : <CheckCircle className="mr-3 text-green-400" />} {toast.msg}
+           </div>
         </div>
       )}
     </div>
