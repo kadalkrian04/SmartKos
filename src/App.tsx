@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-// Fungsi helper untuk merender badge metode pembayaran dengan format (QRIS DANA, QRIS GoPay, QRIS BCA, dll)
 const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
   const method = (methodRaw || 'QRIS').trim();
   const mUpper = method.toUpperCase();
@@ -87,7 +86,7 @@ const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
         type="button" 
         onClick={onEditClick}
         className="group inline-flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer text-left"
-        title="Klik untuk ubah channel (DANA, GoPay, BCA, dll)"
+        title="Klik untuk ubah channel pembayaran"
       >
         {badgeContent}
         <Edit size={12} className="text-slate-400 group-hover:text-blue-600 transition" />
@@ -96,6 +95,17 @@ const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
   }
 
   return badgeContent;
+};
+
+const formatDateSafe = (dateVal: any) => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch (e) {
+    return '-';
+  }
 };
 
 export default function App() {
@@ -168,7 +178,6 @@ export default function App() {
     }
   }, [currentUser, view]);
 
-  // Fungsi fetch data dengan opsi background polling (tanpa kedip spinner)
   const fetchDashboardData = async (isManual = false, isBackground = false) => {
     if (!currentUser) return;
     if (!isBackground) setIsLoading(true);
@@ -210,7 +219,6 @@ export default function App() {
     }
   };
 
-  // Polling Real-Time setiap 4 detik (Otomatis & Halus di Latar Belakang)
   useEffect(() => {
     if (!currentUser || view === 'login' || view === 'register') return;
 
@@ -599,19 +607,17 @@ export default function App() {
   const totalPengeluaran = expenses
     .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
 
-  // Hitung jumlah penyewa yang belum lunas
   const unpaidTenantsSet = new Set(
     bills.filter(b => b.status === 'pending').map(b => b.user_id)
   );
   const totalBelumLunas = unpaidTenantsSet.size;
 
-  // Helper pencocokan kamar terisi yang akurat
   const isRoomOccupied = (r: any) => {
     if (!r) return false;
     const hasResident = users.some(u => 
-      u.role === 'resident' && (
-        (u.room_id && (String(u.room_id) === String(r.id) || String(u.room_id) === String(r.number))) ||
-        (r.resident_id && String(r.resident_id) === String(u.id))
+      (!u.role || u.role === 'resident' || u.role !== 'admin') && (
+        (u.room_id && (String(u.room_id).trim() === String(r.id).trim() || String(u.room_id).trim() === String(r.number).trim())) ||
+        (r.resident_id && String(r.resident_id).trim() === String(u.id).trim())
       )
     );
     return hasResident || r.status === 'occupied' || Boolean(r.resident_id);
@@ -1067,26 +1073,31 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
                   const resident = users.find(u => 
-                    u.role === 'resident' && (
-                      (u.room_id && (String(u.room_id) === String(room.id) || String(u.room_id) === String(room.number))) ||
-                      (room.resident_id && String(room.resident_id) === String(u.id))
-                    )
+                    (room.resident_id && String(u.id).trim() === String(room.resident_id).trim()) ||
+                    (u.room_id && (String(u.room_id).trim() === String(room.id).trim() || String(u.room_id).trim() === String(room.number).trim()))
                   );
-                  const residentBill = bills.find(b => resident && String(b.user_id) === String(resident.id));
-                  const isOccupied = isRoomOccupied(room);
-                  const isPaid = resident ? Boolean(resident.is_fingerprint_active) : (residentBill?.status === 'lunas');
+
+                  const targetUserId = resident?.id || room.resident_id;
+                  const residentBills = bills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
+                  const hasPendingBill = residentBills.some(b => b.status === 'pending');
+                  const hasLunasBill = residentBills.some(b => b.status === 'lunas');
+                  const isOccupied = Boolean(resident || room.status === 'occupied' || room.resident_id);
+
+                  const isPaid = Boolean(
+                    (resident?.is_fingerprint_active && !hasPendingBill) || 
+                    (hasLunasBill && !hasPendingBill) ||
+                    (resident?.active_until && new Date(resident.active_until) > new Date() && !hasPendingBill)
+                  );
+
                   const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
 
-                  const masukDateStr = resident?.created_at 
-                    ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                    : resident?.active_until 
-                      ? new Date(resident.active_until).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                      : '-';
-                  
-                  const dueRaw = residentBill?.due_date || resident?.active_until;
-                  const dueDateStr = dueRaw 
-                    ? new Date(dueRaw).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                    : '-';
+                  const masukDateStr = formatDateSafe(resident?.created_at);
+                  const latestBill = residentBills[0];
+                  const dueRaw = latestBill?.due_date || resident?.active_until;
+                  const dueDateStr = formatDateSafe(dueRaw);
+
+                  const residentPhone = resident?.phone || (resident?.username ? `@${resident.username}` : '-');
+                  const residentName = resident?.name || (room.resident_id ? `Penghuni #${room.resident_id}` : 'Penghuni Aktif');
 
                   return (
                     <div 
@@ -1130,11 +1141,11 @@ export default function App() {
                           <div className="space-y-1.5 my-3 text-xs">
                             <div className="flex items-center text-slate-700 font-semibold truncate">
                               <UserCheck size={13} className="mr-2 text-slate-400 flex-shrink-0" />
-                              <span className="truncate">{resident?.name || (room.resident_id ? `Penghuni #${room.resident_id}` : 'Penghuni Aktif')}</span>
+                              <span className="truncate">{residentName}</span>
                             </div>
                             <div className="flex items-center text-slate-500 font-normal">
                               <Phone size={13} className="mr-2 text-slate-400 flex-shrink-0" />
-                              <span>{resident?.phone || (resident?.username ? `@${resident.username}` : '-')}</span>
+                              <span>{residentPhone}</span>
                             </div>
                             <div className="flex items-center text-[11px] text-slate-400 pt-0.5">
                               <Calendar size={13} className="mr-2 text-slate-400 flex-shrink-0" />
@@ -1156,7 +1167,7 @@ export default function App() {
                         <div>
                           <span className="text-slate-400 font-medium block">Sewa / bulan</span>
                           <span className="font-black text-slate-800 text-sm">
-                            Rp {room.price.toLocaleString('id-ID')}
+                            Rp {Number(room.price || 0).toLocaleString('id-ID')}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -1185,7 +1196,7 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW: PEMBAYARAN (DENGAN REF ADIBKOS & DETAIL METODE GOPAY DLL) */}
+        {/* VIEW: PEMBAYARAN */}
         {/* ========================================================================= */}
         {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
           <div className="space-y-6">
@@ -1195,7 +1206,7 @@ export default function App() {
                   <CreditCard className="mr-2.5 text-blue-600" size={24} /> Manajemen Pembayaran & Tagihan
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Invoice resmi format ADIBKOS, verifikasi QRIS otomatis (GoPay, OVO, ShopeePay, DANA), dan arsip mutasi
+                  Invoice format ADIBKOS, deteksi QRIS otomatis (GoPay, OVO, ShopeePay, DANA), dan arsip transaksi
                 </p>
               </div>
 
@@ -1221,7 +1232,7 @@ export default function App() {
                   onClick={handleGenerateBills} 
                   disabled={isLoading}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap"
-                  title="Generate tagihan bulanan berformat ADIBKOS"
+                  title="Generate tagihan bulanan format ADIBKOS"
                 >
                   <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
                 </button>
@@ -1275,7 +1286,7 @@ export default function App() {
                               </span>
                             </td>
                             <td className="p-4 text-slate-600">
-                              {new Date(b.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {formatDateSafe(b.due_date)}
                             </td>
                             <td className="p-4 text-center">
                               <div className="inline-flex items-center gap-2">
@@ -1313,7 +1324,7 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS DENGAN DETAIL METODE BAYAR */}
+            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
             {paymentTab === 'history' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -1344,7 +1355,7 @@ export default function App() {
                         return (
                           <tr key={b.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-4 text-slate-600">
-                              {new Date(b.created_at || b.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {formatDateSafe(b.created_at || b.due_date)}
                             </td>
                             <td className="p-4">
                               <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
@@ -1356,7 +1367,6 @@ export default function App() {
                               </span>
                             </td>
                             <td className="p-4">
-                              {}
                               {renderPaymentBadge(b.payment_method, () => setChangeMethodModal(b))}
                             </td>
                             <td className="p-4 font-black text-emerald-600 font-mono text-sm">
@@ -1428,7 +1438,7 @@ export default function App() {
                 <tbody className="divide-y">
                   {expenses.map(exp => (
                     <tr key={exp.id} className="hover:bg-slate-50">
-                      <td className="p-4 text-slate-500">{new Date(exp.expense_date || exp.created_at).toLocaleDateString('id-ID')}</td>
+                      <td className="p-4 text-slate-500">{formatDateSafe(exp.expense_date || exp.created_at)}</td>
                       <td className="p-4 font-bold text-slate-800">{exp.title}</td>
                       <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
                       <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
@@ -1451,7 +1461,7 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW: KELOLA USER */}
+        {/* VIEW: KELOLA USER (DI ATAS PENGATURAN) */}
         {/* ========================================================================= */}
         {view === 'admin_users' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
@@ -1652,7 +1662,7 @@ export default function App() {
                     {reportKeuntunganBersih < 0 ? `-Rp ${Math.abs(reportKeuntunganBersih).toLocaleString('id-ID')}` : `Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}`}
                   </div>
                   <span className="text-[11px] text-slate-400 font-medium">
-                    {new Date(appliedStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(appliedEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {formatDateSafe(appliedStartDate)} – {formatDateSafe(appliedEndDate)}
                   </span>
                 </div>
               </div>
@@ -1749,7 +1759,7 @@ export default function App() {
                     {combinedReportTransactions.map((t, idx) => (
                       <tr key={t.id} className="hover:bg-slate-50/80 transition">
                         <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                        <td className="p-3 text-slate-600">{new Date(t.date).toLocaleDateString('id-ID')}</td>
+                        <td className="p-3 text-slate-600">{formatDateSafe(t.date)}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             t.type === 'Pemasukan' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -1804,9 +1814,9 @@ export default function App() {
                 <h1 className="text-2xl font-black uppercase tracking-wider">SMARTKOS MANAGEMENT SYSTEM</h1>
                 <h2 className="text-base font-bold uppercase text-slate-700 mt-1">Laporan Rekapitulasi Arus Kas & Keuangan</h2>
                 <div className="text-xs text-slate-600 mt-1 flex justify-center gap-4">
-                  <span><strong>Periode:</strong> {new Date(appliedStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} s/d {new Date(appliedEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                  <span><strong>Periode:</strong> {formatDateSafe(appliedStartDate)} s/d {formatDateSafe(appliedEndDate)}</span>
                   <span>·</span>
-                  <span><strong>Dicetak Pada:</strong> {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                  <span><strong>Dicetak Pada:</strong> {formatDateSafe(new Date())}</span>
                 </div>
               </div>
 
@@ -2140,12 +2150,26 @@ export default function App() {
         {/* Modal Kamar */}
         {roomModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-xl w-full max-w-sm">
+            <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl">
               <h3 className="font-bold text-lg mb-4">{roomModal.type === 'add' ? 'Tambah Kamar' : 'Edit Kamar'}</h3>
-              <input type="text" name="number" defaultValue={roomModal.data.number} placeholder="Nomor Kamar (ex: 201)" className="w-full p-2 border rounded mb-3" required />
-              <input type="text" name="name" defaultValue={roomModal.data.name} placeholder="Nama Tipe Kamar" className="w-full p-2 border rounded mb-3" required />
-              <input type="number" name="price" defaultValue={roomModal.data.price} placeholder="Harga Sewa / Bulan" className="w-full p-2 border rounded mb-4" required />
-              <div className="flex gap-2"><button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nomor Kamar</label>
+                  <input type="text" name="number" defaultValue={roomModal.data.number} placeholder="Nomor Kamar (ex: 1, 2, 201)" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 outline-none" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Tipe Kamar</label>
+                  <input type="text" name="name" defaultValue={roomModal.data.name} placeholder="Nama Tipe Kamar" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 outline-none" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Harga Sewa / Bulan (Rp)</label>
+                  <input type="number" name="price" defaultValue={roomModal.data.price} placeholder="Harga Sewa / Bulan" className="w-full p-2.5 text-sm border rounded-lg bg-slate-50 font-bold text-blue-600 outline-none" required />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2.5 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 p-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Simpan</button>
+              </div>
             </form>
           </div>
         )}
@@ -2162,7 +2186,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Modal Cepat Ubah Metode Pembayaran (Hanya untuk Koreksi / Offline) */}
+        {/* Modal Koreksi Metode Pembayaran */}
         {changeMethodModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border text-center">
@@ -2232,7 +2256,7 @@ export default function App() {
                  <div key={room.id} className="bg-white p-6 rounded-xl shadow border border-slate-200 text-center hover:border-blue-400 transition">
                    <h3 className="text-3xl font-black text-slate-800 mb-2">{room.number}</h3>
                    <p className="text-sm text-slate-500 mb-4">{room.name}</p>
-                   <p className="text-xl font-bold text-blue-600 mb-6">Rp {room.price.toLocaleString()}/bln</p>
+                   <p className="text-xl font-bold text-blue-600 mb-6">Rp {Number(room.price || 0).toLocaleString('id-ID')}/bln</p>
                    <button onClick={() => handleChooseRoom(room.id)} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow hover:bg-blue-700">Pilih Kamar Ini</button>
                  </div>
                ))}
@@ -2270,9 +2294,9 @@ export default function App() {
                     <div className="text-center pt-4 flex-1 flex flex-col justify-center">
                       <div>
                         <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
-                        <h2 className="text-4xl font-black text-slate-800 my-4">Rp {pendingBill.nominal.toLocaleString()}</h2>
+                        <h2 className="text-4xl font-black text-slate-800 my-4">Rp {Number(pendingBill.nominal).toLocaleString('id-ID')}</h2>
                         <p className="text-xs font-mono font-bold text-slate-500 mb-2">Invoice: {pendingBill.ref_id}</p>
-                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {new Date(pendingBill.due_date).toLocaleDateString()}</p>
+                        <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {formatDateSafe(pendingBill.due_date)}</p>
                         <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
                       </div>
                     </div>
@@ -2292,7 +2316,7 @@ export default function App() {
                       <div className="p-6 bg-green-50 text-green-800 rounded-xl border border-green-200">
                         <CheckCircle size={48} className="mx-auto mb-3 text-green-500"/>
                         <div className="font-black text-lg">KAMAR AKTIF</div>
-                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{new Date(currentUser.active_until).toLocaleDateString()}</strong></p>
+                        <p className="text-sm mt-2">Masa aktif kamar Anda s/d:<br/><strong>{formatDateSafe(currentUser.active_until)}</strong></p>
                       </div>
                     ) : (
                       <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-200">
@@ -2444,7 +2468,7 @@ export default function App() {
                            <td className="p-4">{b.month}</td>
                            <td className="p-4 font-mono text-xs font-bold text-slate-700">{b.ref_id}</td>
                            <td className="p-4">{renderPaymentBadge(b.payment_method)}</td>
-                           <td className="p-4 font-bold text-slate-800">Rp {b.nominal.toLocaleString()}</td>
+                           <td className="p-4 font-bold text-slate-800">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
                            <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
                          </tr>
                        ))}
@@ -2547,6 +2571,7 @@ export default function App() {
           )}
         </div>
 
+        {/* Modal Scan QRIS TokoPay */}
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
@@ -2570,6 +2595,7 @@ export default function App() {
           </div>
         )}
 
+        {/* Modal Konfirmasi Perekaman Sukses */}
         {enrollSuccessModal && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border text-center">

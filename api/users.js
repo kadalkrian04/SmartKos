@@ -6,9 +6,9 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const { rows } = await sql`
-        SELECT id, username, name, address, email, phone, room_id, active_until, is_fingerprint_active, fingerprint_id, created_at 
+        SELECT id, role, username, name, address, email, phone, room_id, active_until, is_fingerprint_active, fingerprint_id, created_at 
         FROM users 
-        WHERE role = 'resident' 
+        WHERE role != 'admin' OR role IS NULL 
         ORDER BY id ASC
       `;
       return res.status(200).json(rows);
