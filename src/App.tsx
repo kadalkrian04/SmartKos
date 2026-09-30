@@ -42,6 +42,7 @@ export default function App() {
   const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
+  const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
@@ -519,9 +520,8 @@ export default function App() {
             { id: 'admin_bills', icon: CreditCard, label: 'Tagihan & Keuangan' },
             { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
             { id: 'admin_history', icon: History, label: 'Riwayat Transaksi' },
-            { id: 'admin_devices', icon: Cpu, label: 'Koneksi Fingerprint' },
             { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
-            { id: 'admin_settings', icon: Settings, label: 'API & Sistem' }
+            { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
           ].map(item => (
             <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${view === item.id ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
               <item.icon size={18} /> <span>{item.label}</span>
@@ -1034,43 +1034,6 @@ export default function App() {
           </div>
         )}
 
-        {view === 'admin_devices' && (
-          <div className="space-y-4">
-             <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4 text-sm text-blue-800 flex items-start">
-               <Wifi className="mr-3 mt-0.5 flex-shrink-0"/> 
-               <div><strong className="block mb-1">Manajemen Perangkat IoT Pintu</strong> Hubungkan alat Fingerprint ke sistem dengan memasukkan Device ID kamar.</div>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {rooms.map(r => (
-                   <div key={r.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-                      <div className="flex justify-between items-center mb-4 border-b pb-4">
-                         <div>
-                           <h4 className="font-black text-xl text-slate-800">{r.number}</h4>
-                           <span className="text-xs text-slate-500">{r.name}</span>
-                         </div>
-                         <Cpu size={32} className={r.device_id ? 'text-green-500' : 'text-slate-300'} />
-                      </div>
-                      
-                      <div className="flex-1">
-                         <label className="text-xs font-bold text-slate-600 block mb-2">Device ID / IP Address</label>
-                         <form onSubmit={(e: any) => { e.preventDefault(); handleSaveDevice(r.id, e.target.device_id.value); }} className="flex gap-2">
-                           <input type="text" name="device_id" defaultValue={r.device_id || ''} placeholder="Ex: KAMAR-201" className="flex-1 p-2 text-sm border rounded bg-slate-50 outline-none focus:border-blue-400" />
-                           <button type="submit" className="bg-slate-800 text-white px-3 py-2 rounded text-sm font-bold hover:bg-slate-900 transition">Save</button>
-                         </form>
-                      </div>
-
-                      <div className="mt-4 pt-4 border-t text-xs flex justify-between items-center">
-                         <span className="font-bold text-slate-500">Status Hardware:</span>
-                         <span className={`px-2 py-1 rounded font-bold ${r.fingerprint_status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                           {r.fingerprint_status ? 'ONLINE' : 'OFFLINE'}
-                         </span>
-                      </div>
-                   </div>
-                ))}
-             </div>
-          </div>
-        )}
-
         {view === 'admin_logs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -1093,21 +1056,184 @@ export default function App() {
         )}
 
         {view === 'admin_settings' && (
-          <div className="max-w-2xl bg-white p-8 rounded-xl shadow-sm border">
-            <h3 className="text-lg font-bold mb-6 flex items-center"><ShieldCheck className="mr-2 text-blue-600"/> Konfigurasi API TokoPay (QRIS)</h3>
-            <form onSubmit={handleSaveSettings} className="space-y-4 mb-8">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Merchant ID</label>
-                <input type="text" name="merchant_id" defaultValue={settings.tokopay_merchant_id} className="w-full p-3 border rounded-lg bg-slate-50" required />
+          <div className="space-y-6 max-w-4xl">
+            {/* Header Pengaturan & Tab Sub-Navigasi */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 flex items-center">
+                    <Settings className="mr-2.5 text-blue-600" size={24}/> Pengaturan Sistem & Integrasi
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola gerbang pembayaran TokoPay (QRIS) dan koneksi perangkat IoT pintu kamar
+                  </p>
+                </div>
+
+                {/* Sub Tab Switcher */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button 
+                    onClick={() => setSettingsTab('tokopay')}
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <ShieldCheck size={14} className="mr-1.5" /> API TokoPay (QRIS)
+                  </button>
+                  <button 
+                    onClick={() => setSettingsTab('devices')}
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <Cpu size={14} className="mr-1.5" /> Perangkat Fingerprint
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Secret Key</label>
-                <input type="password" name="secret_key" defaultValue={settings.tokopay_secret_key} className="w-full p-3 border rounded-lg bg-slate-50" required />
+            </div>
+
+            {/* TAB 1: KONFIGURASI API TOKOPAY */}
+            {settingsTab === 'tokopay' && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className="border-b pb-4 mb-6">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <CreditCard className="mr-2 text-blue-600" size={18} /> Integrasi Pembayaran QRIS Otomatis
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Masukkan kredensial akun TokoPay Anda agar invoice tagihan anak kos otomatis menghasilkan QRIS real-time.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Merchant ID TokoPay
+                    </label>
+                    <input 
+                      type="text" 
+                      name="merchant_id" 
+                      defaultValue={settings.tokopay_merchant_id} 
+                      placeholder="Contoh: M240101XXXXX"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      Secret Key TokoPay
+                    </label>
+                    <input 
+                      type="password" 
+                      name="secret_key" 
+                      defaultValue={settings.tokopay_secret_key} 
+                      placeholder="Masukkan Secret Key TokoPay"
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                      required 
+                    />
+                  </div>
+
+                  <div className="pt-4 flex flex-wrap items-center gap-3">
+                    <button 
+                      type="submit" 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition"
+                    >
+                      <Save size={16} className="mr-2"/> Simpan Konfigurasi
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={handleTestTokoPay}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center transition border border-slate-200"
+                    >
+                      <RefreshCcw size={15} className="mr-2 text-slate-500"/> Uji Koneksi API
+                    </button>
+                  </div>
+                </form>
               </div>
-              <div className="pt-4">
-                <button type="submit" className="bg-slate-800 text-white px-6 py-3 rounded-lg font-bold flex items-center hover:bg-slate-900"><Save size={18} className="mr-2"/> Simpan Konfigurasi</button>
+            )}
+
+            {/* TAB 2: KONEKSI PERANGKAT FINGERPRINT (SESIMPEL MUNGKIN) */}
+            {settingsTab === 'devices' && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                <div className="border-b pb-4">
+                  <h4 className="font-black text-slate-800 text-base flex items-center">
+                    <Wifi className="mr-2 text-blue-600" size={18} /> Koneksi Perangkat Fingerprint (IoT)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Atur Device ID perangkat ESP8266 pada masing-masing pintu kamar. Jika menggunakan 1 alat uji coba di meja, cukup gunakan ID default <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">KAMAR-A1</span>.
+                  </p>
+                </div>
+
+                {/* Tabel Simpel Perangkat Kamar */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b">
+                      <tr>
+                        <th className="p-3.5">Kamar</th>
+                        <th className="p-3.5">Device ID Pintu (ESP8266)</th>
+                        <th className="p-3.5 text-center">Status Hardware</th>
+                        <th className="p-3.5 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rooms.map(r => (
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition">
+                          <td className="p-3.5">
+                            <span className="font-black text-slate-800 text-sm block">Kamar {r.number}</span>
+                            <span className="text-[11px] text-slate-400">{r.name}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <form 
+                              onSubmit={(e: any) => { 
+                                e.preventDefault(); 
+                                handleSaveDevice(r.id, e.target.device_id.value); 
+                              }} 
+                              className="flex items-center gap-2 max-w-xs"
+                            >
+                              <input 
+                                type="text" 
+                                name="device_id" 
+                                defaultValue={r.device_id || `KAMAR-${r.number}`} 
+                                placeholder="Ex: KAMAR-201" 
+                                className="p-2 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono outline-none focus:ring-1 focus:ring-blue-500 flex-1" 
+                              />
+                              <button 
+                                type="submit" 
+                                className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs"
+                                title="Simpan Device ID"
+                              >
+                                Simpan
+                              </button>
+                            </form>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <button 
+                              onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition inline-flex items-center ${
+                                r.fingerprint_status 
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
+                                  : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                              }`}
+                              title="Klik untuk ubah status online/offline hardware"
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${r.fingerprint_status ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                              {r.fingerprint_status ? 'ONLINE' : 'OFFLINE'}
+                            </button>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className="text-[11px] text-slate-400">
+                              {r.device_id ? 'Terhubung' : 'Standby'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {rooms.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400 text-xs">
+                            Belum ada kamar yang terdaftar. Tambahkan kamar terlebih dahulu di Dashboard Utama.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </form>
+            )}
           </div>
         )}
 
