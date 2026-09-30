@@ -95,7 +95,7 @@ Sistem: SmartKos Management System`;
       const mName = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
       const reminderMsg = 
-`⏰ *PENGINGAT JATUH TEMPO SEWA - SMARTKOS*
+`⏰ *PENGINGAT JATUH TEMPO - ADIBJAYAKOS*
 
 Halo Kak *${bill.name}*,
 Ini adalah pengingat bahwa masa sewa kamar kos Anda akan jatuh tempo:
@@ -111,7 +111,7 @@ Untuk menghindari penguncian otomatis akses pintu sidik jari, silakan lakukan pe
 _Abaikan pesan ini apabila Anda sudah melakukan pembayaran. Terima kasih atas kerja samanya!_
 
 Salam hangat,
-*Manajemen SmartKos*`;
+*ADIB JAYAKOS*`;
 
       const result = await sendFonnteMessage(fonnteToken, bill.phone, reminderMsg);
 
