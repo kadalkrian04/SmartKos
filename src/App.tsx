@@ -1,12 +1,15 @@
+/* STREAMING_CHUNK:Mengimpor dependencies React dan Lucide icons... */
 import React, { useState, useEffect } from 'react';
 import { 
   Users, DoorOpen, CreditCard, Settings, LogOut, 
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
-  Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock
+  Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
+  BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet
 } from 'lucide-react';
 import axios from 'axios';
 
+/* STREAMING_CHUNK:Mendefinisikan komponen utama App dan state aplikasi... */
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
@@ -37,18 +40,34 @@ export default function App() {
   const [roomModal, setRoomModal] = useState<any>(null);
   const [billModal, setBillModal] = useState<any>(null);
   const [expenseModal, setExpenseModal] = useState(false);
-  const [userFpModal, setUserFpModal] = useState<any>(null);
-  const [residentEditFpModal, setResidentEditFpModal] = useState(false);
-  const [confirmResetFpModal, setConfirmResetFpModal] = useState(false);
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
+
+  /* STREAMING_CHUNK:Menginisialisasi state filter laporan keuangan... */
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [reportEndDate, setReportEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [appliedStartDate, setAppliedStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [appliedEndDate, setAppliedEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* STREAMING_CHUNK:Menyinkronkan sesi login ke local storage... */
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('smartkos_user', JSON.stringify(currentUser));
@@ -59,6 +78,7 @@ export default function App() {
     }
   }, [currentUser, view]);
 
+  /* STREAMING_CHUNK:Mengambil data dashboard dari server... */
   const fetchDashboardData = async (isManual = false) => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -88,7 +108,7 @@ export default function App() {
          if (!myBill && currentUser.active_until === null && currentUser.room_id) {
              const updatedUser = {...currentUser, room_id: null};
              setCurrentUser(updatedUser);
-             showToast('Waktu pembayaran habis (10 Menit). Kamar dibatalkan otomatis.', 'error');
+             showToast('Waktu pembayaran habis. Kamar dibatalkan otomatis.', 'error');
          } else if (isManual) {
              showToast('Data berhasil diperbarui', 'success');
          }
@@ -104,6 +124,7 @@ export default function App() {
     if (view !== 'login' && view !== 'register') fetchDashboardData();
   }, [view]);
 
+  /* STREAMING_CHUNK:Menangani polling status pembayaran QRIS... */
   useEffect(() => {
     let intervalId: any;
 
@@ -132,6 +153,7 @@ export default function App() {
     return () => { if (intervalId) clearInterval(intervalId); };
   }, [paymentModal]);
 
+  /* STREAMING_CHUNK:Mengelola autentikasi login dan registrasi... */
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -174,6 +196,7 @@ export default function App() {
     localStorage.removeItem('smartkos_view');
   };
 
+  /* STREAMING_CHUNK:Menangani manajemen kamar dan kontrol hardware... */
   const handleSaveRoom = async (e: any) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -235,6 +258,7 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
+  /* STREAMING_CHUNK:Menangani pencatatan pengeluaran kos... */
   const handleSaveExpense = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
@@ -288,7 +312,7 @@ export default function App() {
     try {
       const response = await axios.post('/api/users?action=choose-room', { userId: currentUser.id, roomId });
       if (response.data.success) {
-        showToast('Kamar dipesan! Segera lunasi dalam waktu 10 Menit.', 'success');
+        showToast('Kamar dipesan! Segera lunasi tagihan.', 'success');
         setCurrentUser({ ...currentUser, room_id: roomId }); fetchDashboardData();
       } else { showToast(response.data.message, 'error'); }
     } catch (error) { showToast('Gagal memproses kamar. Coba lagi.', 'error'); }
@@ -311,7 +335,7 @@ export default function App() {
   };
 
   const handleSetLunasManual = async (billId: number, userId: number) => {
-    if(!window.confirm('TokoPay Error? Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
+    if(!window.confirm('Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
     setIsLoading(true);
     try {
       await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId });
@@ -421,7 +445,6 @@ export default function App() {
       });
       const updatedUser = { ...currentUser, fingerprint_id: null };
       setCurrentUser(updatedUser);
-      setConfirmResetFpModal(false);
       showToast('Sidik jari berhasil direset. Silakan daftarkan jari baru.', 'success');
       fetchDashboardData();
     } catch (error) {
@@ -431,14 +454,13 @@ export default function App() {
     }
   };
 
+  /* STREAMING_CHUNK:Menghitung statistik keuangan dan hunian... */
   const totalPemasukan = bills
     .filter(b => b.status === 'lunas')
     .reduce((sum, b) => sum + (Number(b.nominal) || 0), 0);
 
   const totalPengeluaran = expenses
     .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
-
-  const labaBersih = totalPemasukan - totalPengeluaran;
 
   const unpaidTenantsSet = new Set(
     bills.filter(b => b.status === 'pending').map(b => b.user_id)
@@ -450,7 +472,71 @@ export default function App() {
   const kamarKosongCount = rooms.filter(r => r.status === 'available').length;
   const occupancyPercent = Math.round((kamarTerisiCount / totalKamarCount) * 100);
 
-  // Pengurutan nomor kamar alami (1, 2, 3 ... 9, 10, 11, dst)
+  /* STREAMING_CHUNK:Menghitung filter laporan keuangan berdasarkan tanggal... */
+  const handleApplyReportFilter = () => {
+    setAppliedStartDate(reportStartDate);
+    setAppliedEndDate(reportEndDate);
+    showToast('Laporan berhasil disaring sesuai tanggal', 'info');
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  const filteredReportBills = bills.filter(b => {
+    if (b.status !== 'lunas') return false;
+    const dateStr = (b.created_at || b.due_date || '').split('T')[0];
+    if (!dateStr) return true;
+    return dateStr >= appliedStartDate && dateStr <= appliedEndDate;
+  });
+
+  const filteredReportExpenses = expenses.filter(e => {
+    const dateStr = (e.expense_date || e.created_at || '').split('T')[0];
+    if (!dateStr) return true;
+    return dateStr >= appliedStartDate && dateStr <= appliedEndDate;
+  });
+
+  const reportPemasukan = filteredReportBills.reduce((sum, b) => sum + (Number(b.nominal) || 0), 0);
+  const reportPengeluaran = filteredReportExpenses.reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
+  const reportKeuntunganBersih = reportPemasukan - reportPengeluaran;
+
+  /* STREAMING_CHUNK:Membuat data tren 6 bulan terakhir untuk grafik batang... */
+  const getTrend6Months = () => {
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const monthLabel = d.toLocaleDateString('id-ID', { month: 'short' });
+      const fullLabel = `${monthLabel} ${year}`;
+
+      const mBills = bills.filter(b => {
+        if (b.status !== 'lunas') return false;
+        const bDate = new Date(b.created_at || b.due_date);
+        return bDate.getFullYear() === year && bDate.getMonth() === month;
+      });
+      const income = mBills.reduce((s, b) => s + (Number(b.nominal) || 0), 0);
+
+      const mExpenses = expenses.filter(e => {
+        const eDate = new Date(e.expense_date || e.created_at);
+        return eDate.getFullYear() === year && eDate.getMonth() === month;
+      });
+      const expense = mExpenses.reduce((s, e) => s + (Number(e.nominal) || 0), 0);
+      const profit = income - expense;
+
+      months.push({ label: fullLabel, income, expense, profit });
+    }
+    return months;
+  };
+
+  const trendData = getTrend6Months();
+  const maxTrendVal = Math.max(
+    1000000,
+    ...trendData.flatMap(d => [d.income, d.expense, Math.abs(d.profit)])
+  );
+
+  /* STREAMING_CHUNK:Mengatur pengurutan nomor kamar alami... */
   const sortedRooms = [...rooms].sort((a, b) => {
     const numA = parseInt((a.number || '').toString().replace(/\D/g, ''), 10);
     const numB = parseInt((b.number || '').toString().replace(/\D/g, ''), 10);
@@ -460,7 +546,6 @@ export default function App() {
     return (a.number || '').toString().localeCompare((b.number || '').toString(), undefined, { numeric: true });
   });
 
-  // Penentuan lantai: Kamar 1-16 (Lt 2), Kamar 17-19 (Lt 3)
   const getRoomFloor = (r: any): number => {
     const nameLower = (r.name || '').toLowerCase();
     if (nameLower.includes('lt 3') || nameLower.includes('lantai 3')) return 3;
@@ -478,7 +563,6 @@ export default function App() {
   const roomsLantai2 = sortedRooms.filter(r => getRoomFloor(r) === 2);
   const roomsLantai3 = sortedRooms.filter(r => getRoomFloor(r) === 3);
 
-  // Kamar yang ditampilkan sesuai tab filter
   const displayedRooms = floorFilter === 'lt2' 
     ? roomsLantai2 
     : floorFilter === 'lt3' 
@@ -488,6 +572,7 @@ export default function App() {
   const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
   const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
+  /* STREAMING_CHUNK:Merender tampilan autentikasi... */
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border">
@@ -517,9 +602,11 @@ export default function App() {
     </div>
   );
 
+  /* STREAMING_CHUNK:Merender tampilan panel admin dan navigasi sidebar... */
   const renderAdmin = () => (
     <div className="flex min-h-screen bg-slate-50">
-      <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex">
+      {/* Sidebar Navigasi - Disembunyikan saat cetak PDF */}
+      <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex print:hidden">
         <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
           <Fingerprint className="text-blue-400" size={28} />
           <span className="font-bold text-xl">AdminKos</span>
@@ -530,6 +617,7 @@ export default function App() {
             { id: 'admin_users', icon: Users, label: 'Data Penghuni' },
             { id: 'admin_bills', icon: CreditCard, label: 'Tagihan & Keuangan' },
             { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
+            { id: 'admin_reports', icon: BarChart3, label: 'Laporan Keuangan' },
             { id: 'admin_history', icon: History, label: 'Riwayat Transaksi' },
             { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
             { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
@@ -542,8 +630,9 @@ export default function App() {
         <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition"><LogOut size={18} className="mr-3" /> Keluar</button></div>
       </div>
 
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
-        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto print:p-0 print:bg-white">
+        {/* Topbar Admin - Disembunyikan saat cetak */}
+        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
           <div>
             <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
             <p className="text-xs text-slate-500">Monitoring Hunian, Akses Pintu Biometrik & Arus Kas</p>
@@ -554,13 +643,11 @@ export default function App() {
         </div>
 
         {/* ========================================================================= */}
-        {/* VIEW 1: DASHBOARD UTAMA DENGAN 4 METRIK DAN DENAH LANTAI 2 & 3 */}
+        {/* VIEW 1: DASHBOARD UTAMA */}
         {/* ========================================================================= */}
         {view === 'admin_dashboard' && (
           <div className="space-y-6">
-            {/* 4 KARTU STATISTIK UTAMA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* 1. KARTU PEMASUKAN */}
               <div className="bg-[#1e293b] text-white p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
                 <div className="flex justify-between items-start mb-3">
                   <span className="text-[11px] font-bold text-slate-300 tracking-wider uppercase">
@@ -580,7 +667,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 2. KARTU PENGELUARAN */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex justify-between items-start mb-3">
                   <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
@@ -607,7 +693,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 3. KARTU BELUM LUNAS */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex justify-between items-start mb-3">
                   <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
@@ -626,7 +711,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4. KARTU HUNIAN */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
@@ -651,7 +735,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* STATUS KAMAR & TOMBOL TAMBAH KAMAR */}
+            {/* STATUS KAMAR */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
@@ -661,7 +745,6 @@ export default function App() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                  {/* Filter Lantai Otomatis & Dinamis */}
                   <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button 
                       onClick={() => setFloorFilter('all')} 
@@ -692,7 +775,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* GRID DENAH STATUS KAMAR URUT ALAMI */}
+              {/* GRID DENAH STATUS KAMAR */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
                   const resident = users.find(u => u.room_id === room.id && u.role === 'resident');
@@ -822,6 +905,285 @@ export default function App() {
           </div>
         )}
 
+        {/* ========================================================================= */}
+        {/* VIEW BARU: LAPORAN KEUANGAN LENGKAP & CETAK PDF (SESUAI GAMBAR) */}
+        {/* ========================================================================= */}
+        {view === 'admin_reports' && (
+          <div className="space-y-6 printable-report">
+            {/* Header Laporan */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800">Laporan Keuangan</h2>
+                <p className="text-xs text-slate-500 font-medium">Ringkasan pemasukan & pengeluaran berdasarkan rentang tanggal</p>
+              </div>
+              <div className="print:block hidden text-right text-xs text-slate-500">
+                Dicetak: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Filter Rentang Tanggal & Tombol Cetak PDF */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 print:hidden">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2">DARI</span>
+                  <input 
+                    type="date" 
+                    value={reportStartDate} 
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="bg-transparent font-semibold text-slate-700 outline-none"
+                  />
+                </div>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2">SAMPAI</span>
+                  <input 
+                    type="date" 
+                    value={reportEndDate} 
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="bg-transparent font-semibold text-slate-700 outline-none"
+                  />
+                </div>
+                <button 
+                  onClick={handleApplyReportFilter}
+                  className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-5 py-2.5 rounded-xl font-bold flex items-center transition shadow-sm"
+                >
+                  <Search size={14} className="mr-1.5" /> Terapkan
+                </button>
+              </div>
+
+              <button 
+                onClick={handlePrintReport}
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition"
+              >
+                <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
+              </button>
+            </div>
+
+            {/* 4 Kartu Metrik Laporan Sesuai Desain Gambar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 1. PEMASUKAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-500">
+                    <TrendingUp size={15} />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PEMASUKAN
+                  </span>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp {reportPemasukan.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {filteredReportBills.length} pembayaran lunas
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. PENGELUARAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500">
+                    <TrendingDown size={15} />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    PENGELUARAN
+                  </span>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp {reportPengeluaran.toLocaleString('id-ID')}
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {filteredReportExpenses.length} item pengeluaran
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. UANG MUKA */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Wallet size={15} />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    UANG MUKA
+                  </span>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight mb-1">
+                    Rp 0
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    0 penyewa
+                  </span>
+                </div>
+              </div>
+
+              {/* 4. KEUNTUNGAN BERSIH */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${reportKeuntunganBersih >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    <Receipt size={15} />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                    KEUNTUNGAN BERSIH
+                  </span>
+                </div>
+                <div>
+                  <div className={`text-2xl font-black tracking-tight mb-1 ${reportKeuntunganBersih < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {reportKeuntunganBersih < 0 ? `-Rp ${Math.abs(reportKeuntunganBersih).toLocaleString('id-ID')}` : `Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}`}
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {new Date(appliedStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(appliedEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Grafik Tren 6 Bulan Terakhir */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="mb-6">
+                <h3 className="font-bold text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Pemasukan, pengeluaran, dan keuntungan bersih per bulan</p>
+              </div>
+
+              {/* Batang Diagram */}
+              <div className="h-64 flex items-end justify-between gap-2 sm:gap-6 pt-6 pb-2 border-b border-slate-100">
+                {trendData.map((item, idx) => {
+                  const incomeHeight = Math.max(6, Math.min(100, Math.round((item.income / maxTrendVal) * 100)));
+                  const expenseHeight = Math.max(6, Math.min(100, Math.round((item.expense / maxTrendVal) * 100)));
+                  const profitHeight = Math.max(6, Math.min(100, Math.round((Math.max(0, item.profit) / maxTrendVal) * 100)));
+
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
+                      <div className="w-full flex items-end justify-center gap-1 sm:gap-2 h-full">
+                        {/* Batang Pemasukan (Biru Muda) */}
+                        <div 
+                          className="w-3 sm:w-5 bg-sky-400 rounded-t-md transition-all hover:bg-sky-500 relative" 
+                          style={{ height: `${incomeHeight}%` }}
+                          title={`Pemasukan: Rp ${item.income.toLocaleString('id-ID')}`}
+                        ></div>
+                        {/* Batang Pengeluaran (Merah Muda/Rose) */}
+                        <div 
+                          className="w-3 sm:w-5 bg-rose-400 rounded-t-md transition-all hover:bg-rose-500 relative" 
+                          style={{ height: `${expenseHeight}%` }}
+                          title={`Pengeluaran: Rp ${item.expense.toLocaleString('id-ID')}`}
+                        ></div>
+                        {/* Batang Keuntungan (Navy Gelap) */}
+                        <div 
+                          className="w-3 sm:w-5 bg-[#2c3e50] rounded-t-md transition-all hover:bg-slate-900 relative" 
+                          style={{ height: `${profitHeight}%` }}
+                          title={`Keuntungan: Rp ${item.profit.toLocaleString('id-ID')}`}
+                        ></div>
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-3 whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend Grafik */}
+              <div className="flex flex-wrap items-center justify-center gap-6 mt-4 pt-2 text-xs font-semibold text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-xs bg-[#2c3e50]"></span>
+                  <span>Keuntungan</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-xs bg-sky-400"></span>
+                  <span>Pemasukan</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-xs bg-rose-400"></span>
+                  <span>Pengeluaran</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Rincian Tabel: Pemasukan Sewa vs Pengeluaran dalam Rentang Tanggal */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Kolom Kiri: Pemasukan Sewa */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
+                  <span>Pemasukan Sewa (Lunas)</span>
+                  <span className="text-xs text-slate-400 font-normal">{filteredReportBills.length} data</span>
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                      <tr>
+                        <th className="p-2.5">Tanggal</th>
+                        <th className="p-2.5">Penghuni</th>
+                        <th className="p-2.5">Kamar</th>
+                        <th className="p-2.5 text-right">Nominal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredReportBills.map(b => {
+                        const user = users.find(u => u.id === b.user_id);
+                        const room = rooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/60">
+                            <td className="p-2.5 text-slate-500">{new Date(b.created_at || b.due_date).toLocaleDateString('id-ID')}</td>
+                            <td className="p-2.5 font-bold text-slate-800">{user?.name || `User #${b.user_id}`}</td>
+                            <td className="p-2.5 text-slate-600">{room ? `Kmr ${room.number}` : '-'}</td>
+                            <td className="p-2.5 font-black text-sky-600 text-right">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
+                          </tr>
+                        );
+                      })}
+                      {filteredReportBills.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pemasukan pada rentang tanggal ini.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Kolom Kanan: Pengeluaran */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
+                  <span>Rincian Pengeluaran</span>
+                  <span className="text-xs text-slate-400 font-normal">{filteredReportExpenses.length} data</span>
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                      <tr>
+                        <th className="p-2.5">Tanggal</th>
+                        <th className="p-2.5">Keperluan</th>
+                        <th className="p-2.5">Kategori</th>
+                        <th className="p-2.5 text-right">Nominal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredReportExpenses.map(e => (
+                        <tr key={e.id} className="hover:bg-slate-50/60">
+                          <td className="p-2.5 text-slate-500">{new Date(e.expense_date || e.created_at).toLocaleDateString('id-ID')}</td>
+                          <td className="p-2.5 font-bold text-slate-800">{e.title}</td>
+                          <td className="p-2.5 text-slate-600"><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 font-medium">{e.category}</span></td>
+                          <td className="p-2.5 font-black text-rose-600 text-right">Rp {Number(e.nominal).toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))}
+                      {filteredReportExpenses.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pengeluaran pada rentang tanggal ini.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 2: BUKU PENGELUARAN */}
+        {/* ========================================================================= */}
         {view === 'admin_expenses' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
@@ -873,6 +1235,7 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW 3: DATA PENGHUNI */}
         {view === 'admin_users' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
@@ -944,34 +1307,7 @@ export default function App() {
           </div>
         )}
 
-        {view === 'admin_rooms' && (
-          <div className="space-y-4">
-            <button onClick={() => setRoomModal({ type: 'add', data: {} })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Tambah Kamar Baru</button>
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b"><tr><th className="p-4">No. Kamar</th><th className="p-4">Nama</th><th className="p-4">Harga (Rp)</th><th className="p-4">Status</th><th className="p-4">HW Fingerprint</th><th className="p-4">Aksi</th></tr></thead>
-                <tbody className="divide-y">
-                  {sortedRooms.map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{r.number}</td><td className="p-4">{r.name}</td><td className="p-4 text-blue-600 font-bold">{r.price.toLocaleString()}</td>
-                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{r.status}</span></td>
-                      <td className="p-4">
-                        <button onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)} className={`px-3 py-1 text-xs font-bold rounded-full ${r.fingerprint_status ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
-                          {r.fingerprint_status ? 'NYALA' : 'MATI'}
-                        </button>
-                      </td>
-                      <td className="p-4 flex gap-2">
-                        <button onClick={() => setRoomModal({ type: 'edit', data: r })} className="text-blue-600 hover:bg-blue-50 p-2 rounded"><Edit size={16}/></button>
-                        <button onClick={() => handleDeleteRoom(r.id)} className="text-red-600 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
+        {/* VIEW 4: TAGIHAN */}
         {view === 'admin_bills' && (
           <div className="space-y-4">
             <button onClick={handleGenerateBills} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Generate Tagihan Bulan Ini</button>
@@ -1001,6 +1337,7 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW 5: RIWAYAT TRANSAKSI */}
         {view === 'admin_history' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex justify-between items-center mb-6">
@@ -1026,6 +1363,7 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW 6: LOG PINTU */}
         {view === 'admin_logs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -1047,6 +1385,7 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW 7: PENGATURAN */}
         {view === 'admin_settings' && (
           <div className="space-y-6 max-w-4xl">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -1208,14 +1547,6 @@ export default function App() {
                           </td>
                         </tr>
                       ))}
-
-                      {sortedRooms.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400 text-xs">
-                            Belum ada kamar yang terdaftar. Tambahkan kamar terlebih dahulu di Dashboard Utama.
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1224,6 +1555,7 @@ export default function App() {
           </div>
         )}
 
+        {/* Modal Catat Pengeluaran Baru */}
         {expenseModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <form onSubmit={handleSaveExpense} className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border">
@@ -1270,6 +1602,7 @@ export default function App() {
           </div>
         )}
 
+        {/* Modal Kamar */}
         {roomModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <form onSubmit={handleSaveRoom} className="bg-white p-6 rounded-xl w-full max-w-sm">
@@ -1282,6 +1615,7 @@ export default function App() {
           </div>
         )}
         
+        {/* Modal Tagihan */}
         {billModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <form onSubmit={handleEditBill} className="bg-white p-6 rounded-xl w-full max-w-sm">
@@ -1296,6 +1630,7 @@ export default function App() {
     </div>
   );
 
+  /* STREAMING_CHUNK:Merender tampilan resident dashboard dan sidik jari... */
   const renderResident = () => {
     if (!currentUser.room_id) {
       return (
@@ -1579,11 +1914,28 @@ export default function App() {
     );
   };
 
+  /* STREAMING_CHUNK:Merender wadah utama aplikasi dan konfigurasi gaya cetak CSS... */
   return (
     <div className="font-sans text-slate-800 bg-slate-100 min-h-screen">
+      <style>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 1.5cm;
+          }
+          body {
+            background-color: white !important;
+            color: black !important;
+          }
+          .printable-report {
+            width: 100% !important;
+          }
+        }
+      `}</style>
+
       {view === 'login' || view === 'register' ? renderAuth() : view.startsWith('admin') ? renderAdmin() : renderResident()}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 right-6 z-50 print:hidden">
            <div className={`px-6 py-4 rounded-xl shadow-xl font-bold flex items-center ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
              {toast.type === 'error' ? <XCircle className="mr-3" /> : <CheckCircle className="mr-3 text-green-400" />} {toast.msg}
            </div>
