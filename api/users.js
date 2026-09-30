@@ -50,16 +50,13 @@ export default async function handler(req, res) {
 
         const roomId = userRes.rows[0].room_id;
 
-        // Auto-Fix: Pastikan kolom database tersedia sebelum update
         try {
           await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_user_id INT DEFAULT NULL`;
           await sql`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS enroll_expires_at TIMESTAMP DEFAULT NULL`;
         } catch (migErr) {}
 
-        // KUNCI UTAMA: Kosongkan fingerprint_id lama agar web TIDAK mendeteksi sukses palsu!
         await sql`UPDATE users SET fingerprint_id = NULL WHERE id = ${userId}`;
 
-        // Aktifkan sesi rekam di kamar selama 90 detik
         await sql`
           UPDATE rooms 
           SET enroll_user_id = ${userId}, enroll_expires_at = NOW() + INTERVAL '90 seconds' 
@@ -93,10 +90,16 @@ export default async function handler(req, res) {
         await sql`UPDATE users SET room_id = ${roomId} WHERE id = ${userId}`;
         await sql`UPDATE rooms SET status = 'occupied', resident_id = ${userId} WHERE id = ${roomId}`;
 
-        const refId = `INV-${userId}-${Date.now()}`;
+        // Pastikan kolom payment_method ada
+        try {
+          await sql`ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'QRIS'`;
+        } catch (colErr) {}
+
+        // Format ADIBKOS-[USER_ID]-[TIMESTAMP]
+        const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
         await sql`
-          INSERT INTO bills (user_id, nominal, month, due_date, ref_id)
-          VALUES (${userId}, ${roomPrice}, TO_CHAR(CURRENT_DATE, 'Month YYYY'), CURRENT_DATE + INTERVAL '1 days', ${refId})
+          INSERT INTO bills (user_id, nominal, month, due_date, ref_id, payment_method)
+          VALUES (${userId}, ${roomPrice}, TO_CHAR(CURRENT_DATE, 'Month YYYY'), CURRENT_DATE + INTERVAL '1 days', ${refId}, 'QRIS')
         `;
 
         return res.status(200).json({ success: true, message: 'Berhasil memilih kamar dan tagihan telah dibuat' });

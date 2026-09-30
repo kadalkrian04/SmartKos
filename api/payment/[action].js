@@ -14,20 +14,55 @@ export default async function handler(req, res) {
       if (typeof payload === 'string') {
         try { payload = JSON.parse(payload); } catch(e) {}
       }
-      const payloadString = JSON.stringify(payload);
+      const payloadString = JSON.stringify(payload || {});
+
+      // Catat webhook ke logs untuk audit sistem
       try {
         await sql`INSERT INTO logs (user_id, action) VALUES (0, ${'WEBHOOK MASUK: ' + payloadString.substring(0, 220)})`;
       } catch(e) {}
 
-      const invMatch = payloadString.match(/INV-\d+-\d+/);
-      let ref_id = invMatch ? invMatch[0] : null;
+      // Otomatis pastikan kolom payment_method tersedia di tabel bills
+      try {
+        await sql`ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'QRIS'`;
+      } catch (colErr) {}
+
+      // Cari Ref ID baru (ADIBKOS-...) atau fallback lama (INV-...)
+      let ref_id = payload.ref_id || payload.reff_id || payload.order_id || null;
+      if (!ref_id) {
+        const match = payloadString.match(/(?:ADIBKOS|INV)-\d+-\d+/i);
+        ref_id = match ? match[0] : null;
+      }
+
+      // Deteksi channel / metode pembayaran yang dipakai pembeli (misal: GoPay, ShopeePay, DANA, OVO)
+      let rawMethod = payload.channel || payload.metode || payload.payment_method || payload.brand || payload.pay_name || payload.issuer || payload.source || (payload.data && (payload.data.channel || payload.data.metode || payload.data.payment_method)) || '';
+      const methodUpper = (rawMethod + ' ' + payloadString).toUpperCase();
+
+      let detectedMethod = 'QRIS';
+      if (methodUpper.includes('GOPAY')) {
+        detectedMethod = 'GoPay';
+      } else if (methodUpper.includes('SHOPEE') || methodUpper.includes('SPAY')) {
+        detectedMethod = 'ShopeePay';
+      } else if (methodUpper.includes('OVO')) {
+        detectedMethod = 'OVO';
+      } else if (methodUpper.includes('DANA')) {
+        detectedMethod = 'DANA';
+      } else if (methodUpper.includes('BCA')) {
+        detectedMethod = 'BCA QRIS';
+      } else if (methodUpper.includes('LIVIN') || methodUpper.includes('MANDIRI')) {
+        detectedMethod = 'Livin Mandiri';
+      } else if (methodUpper.includes('BRIMO') || methodUpper.includes('BRI')) {
+        detectedMethod = 'BRImo';
+      } else if (rawMethod && rawMethod.toString().trim() !== '') {
+        detectedMethod = rawMethod.toString().trim();
+      }
 
       const pLower = payloadString.toLowerCase();
-      const isSuccess = pLower.includes('success') || pLower.includes('sukses') || pLower.includes('paid') || pLower.includes('settlement');
+      const isSuccess = pLower.includes('success') || pLower.includes('sukses') || pLower.includes('paid') || pLower.includes('settlement') || payload.status === '1' || payload.status === 1 || payload.status === 'dibayar';
 
       if (ref_id && isSuccess) {
         const updateBill = await sql`
-          UPDATE bills SET status = 'lunas' 
+          UPDATE bills 
+          SET status = 'lunas', payment_method = ${detectedMethod} 
           WHERE ref_id = ${ref_id} 
           RETURNING user_id
         `;
@@ -39,7 +74,7 @@ export default async function handler(req, res) {
                 active_until = CURRENT_DATE + INTERVAL '37 days' 
             WHERE id = ${userId}
           `;
-          await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, ${'Pembayaran Otomatis Lunas: ' + ref_id})`;
+          await sql`INSERT INTO logs (user_id, action) VALUES (${userId}, ${'Pembayaran Lunas via ' + detectedMethod + ': ' + ref_id})`;
         }
       }
       return res.status(200).json({ success: true, message: 'Laporan Diterima' });
@@ -49,7 +84,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. GENERATE QRIS TOKOPAY
+  // 2. GENERATE QRIS TOKOPAY DENGAN FORMAT ADIBKOS
   if (action === 'qris') {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
     const { refId, nominal } = req.body;
@@ -66,12 +101,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: false, message: 'Minimal pembayaran QRIS TokoPay adalah Rp 1.000' });
       }
 
-      const parts = refId.split('-');
-      let freshRefId = refId;
-      if(parts.length >= 2) {
-        freshRefId = `${parts[0]}-${parts[1]}-${Date.now()}`;
-        await sql`UPDATE bills SET ref_id = ${freshRefId} WHERE ref_id = ${refId}`;
-      }
+      // Generate Ref ID berformat ADIBKOS-[USER_ID]-[UNIX_TIMESTAMP]
+      const parts = (refId || '').split('-');
+      const userId = parts.length >= 2 ? parts[1] : '1';
+      const freshRefId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
+
+      await sql`UPDATE bills SET ref_id = ${freshRefId} WHERE ref_id = ${refId}`;
 
       const url = `https://api.tokopay.id/v1/order?merchant=${merchant}&secret=${secret}&ref_id=${freshRefId}&nominal=${nominalBulat}&metode=QRIS`;
       const { data } = await axios.get(url);
@@ -100,7 +135,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: false, message: 'Merchant ID atau Secret Key kosong!' });
       }
 
-      const refId = 'TEST-API-' + Date.now();
+      const refId = 'ADIBKOS-TEST-' + Math.floor(Date.now() / 1000);
       const url = `https://api.tokopay.id/v1/order?merchant=${merchant}&secret=${secret}&ref_id=${refId}&nominal=1000&metode=QRIS`;
       const { data } = await axios.get(url);
 

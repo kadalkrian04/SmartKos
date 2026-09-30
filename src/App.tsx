@@ -4,9 +4,72 @@ import {
   CheckCircle, XCircle, Fingerprint, Activity, FileText, Plus, Edit, Trash2, RefreshCcw, 
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
-  BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download
+  BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
+  Smartphone, Banknote
 } from 'lucide-react';
 import axios from 'axios';
+
+// Fungsi helper untuk merender badge metode pembayaran (GoPay, ShopeePay, DANA, OVO, QRIS, Tunai)
+const renderPaymentBadge = (methodRaw: string) => {
+  const method = (methodRaw || 'QRIS').trim();
+  const mUpper = method.toUpperCase();
+
+  if (mUpper.includes('GOPAY')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+        GoPay
+      </span>
+    );
+  }
+  if (mUpper.includes('SHOPEE') || mUpper.includes('SPAY')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-orange-50 text-orange-700 border border-orange-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-orange-500 mr-1.5"></span>
+        ShopeePay
+      </span>
+    );
+  }
+  if (mUpper.includes('OVO')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-purple-50 text-purple-700 border border-purple-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-purple-500 mr-1.5"></span>
+        OVO
+      </span>
+    );
+  }
+  if (mUpper.includes('DANA')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-sky-50 text-sky-700 border border-sky-300 inline-flex items-center shadow-xs">
+        <span className="w-2 h-2 rounded-full bg-sky-500 mr-1.5"></span>
+        DANA
+      </span>
+    );
+  }
+  if (mUpper.includes('TUNAI') || mUpper.includes('MANUAL')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center shadow-xs">
+        <Banknote size={12} className="mr-1 text-amber-600" />
+        Tunai / Manual
+      </span>
+    );
+  }
+  if (mUpper.includes('BCA') || mUpper.includes('MANDIRI') || mUpper.includes('BRI')) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-300 inline-flex items-center shadow-xs">
+        <Smartphone size={12} className="mr-1 text-blue-600" />
+        {method}
+      </span>
+    );
+  }
+
+  return (
+    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center">
+      <Smartphone size={12} className="mr-1 text-slate-500" />
+      {method || 'QRIS'}
+    </span>
+  );
+};
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
@@ -18,7 +81,6 @@ export default function App() {
   
   const [view, setView] = useState(() => {
     const saved = localStorage.getItem('smartkos_view');
-    // Sinkronisasi jika sebelumnya tersimpan view terpisah lama
     if (saved === 'admin_bills' || saved === 'admin_history') return 'admin_payments';
     return saved || 'login';
   }); 
@@ -44,7 +106,6 @@ export default function App() {
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
-  // State sub-tab menu Pembayaran: 'pending' (Tagihan Aktif) atau 'history' (Riwayat Lunas)
   const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
 
   const [reportStartDate, setReportStartDate] = useState(() => {
@@ -141,7 +202,8 @@ export default function App() {
                active_until: new Date(Date.now() + (37 * 24 * 60 * 60 * 1000)).toISOString()
             };
             setCurrentUser(updatedUser);
-            showToast('🎉 Pembayaran Berhasil! Akses Kamar & Sidik Jari telah aktif.', 'success');
+            const methodUsed = updatedBill.payment_method || 'QRIS';
+            showToast(`🎉 Pembayaran via ${methodUsed} Berhasil! Akses Kamar & Sidik Jari telah aktif.`, 'success');
             fetchDashboardData();
             clearInterval(intervalId); 
           }
@@ -314,7 +376,7 @@ export default function App() {
   const handleGenerateBills = async () => {
     setIsLoading(true);
     try {
-      await axios.post('/api/bills'); showToast('Tagihan otomatis dibuat', 'success'); fetchDashboardData();
+      await axios.post('/api/bills'); showToast('Tagihan otomatis dibuat (ADIBKOS)', 'success'); fetchDashboardData();
     } catch (error) { showToast('Gagal membuat tagihan', 'error'); } 
     finally { setIsLoading(false); }
   };
@@ -330,8 +392,8 @@ export default function App() {
   const handleSetLunasManual = async (billId: number, userId: number) => {
     setIsLoading(true);
     try {
-      await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId });
-      showToast('Tagihan dilunasi manual! Akses kamar aktif.', 'success');
+      await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId, payment_method: 'Tunai / Manual' });
+      showToast('Tagihan dilunasi manual (Tunai)! Akses kamar aktif.', 'success');
       fetchDashboardData();
     } catch (error) { showToast('Gagal set lunas tagihan', 'error'); }
     finally { setIsLoading(false); }
@@ -494,12 +556,14 @@ export default function App() {
     ...filteredReportBills.map(b => {
       const user = users.find(u => u.id === b.user_id);
       const room = rooms.find(r => r.id === user?.room_id);
+      const method = b.payment_method || 'QRIS';
       return {
         id: `bill-${b.id}`,
         date: (b.created_at || b.due_date || '').split('T')[0],
         type: 'Pemasukan',
         category: room ? `Kamar ${room.number}` : 'Sewa Kamar',
-        description: `Pembayaran Sewa: ${user?.name || `User #${b.user_id}`}`,
+        description: `Pembayaran Sewa: ${user?.name || `User #${b.user_id}`} (${method})`,
+        paymentMethod: method,
         income: Number(b.nominal) || 0,
         expense: 0
       };
@@ -510,6 +574,7 @@ export default function App() {
       type: 'Pengeluaran',
       category: e.category || 'Operasional',
       description: e.title || '-',
+      paymentMethod: 'Kas Kos',
       income: 0,
       expense: Number(e.nominal) || 0
     }))
@@ -531,6 +596,7 @@ export default function App() {
           <td style="text-align:center;font-weight:bold;color:${t.type === 'Pemasukan' ? '#0284c7' : '#e11d48'};border:1px solid #94a3b8;">${t.type}</td>
           <td style="border:1px solid #94a3b8;">${t.category}</td>
           <td style="border:1px solid #94a3b8;">${t.description}</td>
+          <td style="text-align:center;font-weight:bold;border:1px solid #94a3b8;">${t.paymentMethod}</td>
           <td style="text-align:right;border:1px solid #94a3b8;color:#0284c7;">${t.income > 0 ? t.income.toLocaleString('id-ID') : '-'}</td>
           <td style="text-align:right;border:1px solid #94a3b8;color:#e11d48;">${t.expense > 0 ? t.expense.toLocaleString('id-ID') : '-'}</td>
           <td style="text-align:right;font-weight:bold;border:1px solid #94a3b8;color:${runningBalance >= 0 ? '#16a34a' : '#e11d48'};">${runningBalance.toLocaleString('id-ID')}</td>
@@ -553,20 +619,20 @@ export default function App() {
       </head>
       <body>
         <table>
-          <tr><td colspan="8" class="title">LAPORAN ARUS KAS & KEUANGAN SMARTKOS</td></tr>
-          <tr><td colspan="8" class="subtitle">Periode: ${appliedStartDate} s/d ${appliedEndDate} | Tanggal Ekspor: ${new Date().toLocaleDateString('id-ID')}</td></tr>
-          <tr><td colspan="8"></td></tr>
+          <tr><td colspan="9" class="title">LAPORAN ARUS KAS & KEUANGAN SMARTKOS</td></tr>
+          <tr><td colspan="9" class="subtitle">Periode: ${appliedStartDate} s/d ${appliedEndDate} | Tanggal Ekspor: ${new Date().toLocaleDateString('id-ID')}</td></tr>
+          <tr><td colspan="9"></td></tr>
           <tr>
-            <td colspan="2" class="header-box">TOTAL PEMASUKAN</td>
+            <td colspan="3" class="header-box">TOTAL PEMASUKAN</td>
             <td colspan="3" class="header-box">TOTAL PENGELUARAN</td>
             <td colspan="3" class="header-box">KEUNTUNGAN BERSIH (LABA)</td>
           </tr>
           <tr style="font-size: 13pt; font-weight: bold;">
-            <td colspan="2" style="border:1px solid #cbd5e1; color:#0284c7; text-align:center;">Rp ${reportPemasukan.toLocaleString('id-ID')}</td>
+            <td colspan="3" style="border:1px solid #cbd5e1; color:#0284c7; text-align:center;">Rp ${reportPemasukan.toLocaleString('id-ID')}</td>
             <td colspan="3" style="border:1px solid #cbd5e1; color:#e11d48; text-align:center;">Rp ${reportPengeluaran.toLocaleString('id-ID')}</td>
             <td colspan="3" style="border:1px solid #cbd5e1; color:${reportKeuntunganBersih >= 0 ? '#16a34a' : '#e11d48'}; text-align:center;">Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}</td>
           </tr>
-          <tr><td colspan="8"></td></tr>
+          <tr><td colspan="9"></td></tr>
           <thead>
             <tr>
               <th>No</th>
@@ -574,6 +640,7 @@ export default function App() {
               <th>Tipe</th>
               <th>Kamar / Kategori</th>
               <th>Keterangan / Penghuni</th>
+              <th>Metode Bayar</th>
               <th>Pemasukan (Rp)</th>
               <th>Pengeluaran (Rp)</th>
               <th>Saldo Kumulatif (Rp)</th>
@@ -582,7 +649,7 @@ export default function App() {
           <tbody>
             ${rowsHtml}
             <tr style="background-color: #f8fafc; font-weight: bold;">
-              <td colspan="5" style="text-align: right; border: 1px solid #94a3b8;">TOTAL:</td>
+              <td colspan="6" style="text-align: right; border: 1px solid #94a3b8;">TOTAL:</td>
               <td style="text-align: right; border: 1px solid #94a3b8; color: #0284c7;">Rp ${reportPemasukan.toLocaleString('id-ID')}</td>
               <td style="text-align: right; border: 1px solid #94a3b8; color: #e11d48;">Rp ${reportPengeluaran.toLocaleString('id-ID')}</td>
               <td style="text-align: right; border: 1px solid #94a3b8; color: ${reportKeuntunganBersih >= 0 ? '#16a34a' : '#e11d48'};">Rp ${reportKeuntunganBersih.toLocaleString('id-ID')}</td>
@@ -675,7 +742,6 @@ export default function App() {
   const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
   const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
-  // Filter daftar tagihan untuk menu terpadu Pembayaran
   const pendingBillsList = bills.filter(b => b.status === 'pending');
   const historyBillsList = bills.filter(b => b.status === 'lunas');
 
@@ -710,7 +776,6 @@ export default function App() {
 
   const renderAdmin = () => (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar Navigasi - Disembunyikan saat cetak PDF */}
       <div className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex print:hidden">
         <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
           <Fingerprint className="text-blue-400" size={28} />
@@ -735,7 +800,6 @@ export default function App() {
       </div>
 
       <div className="flex-1 p-4 md:p-8 overflow-y-auto print:p-0 print:bg-white">
-        {/* Topbar Admin - Disembunyikan saat cetak PDF */}
         <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
           <div>
             <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
@@ -988,45 +1052,27 @@ export default function App() {
                     </div>
                   );
                 })}
-
-                {displayedRooms.length === 0 && (
-                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center col-span-full">
-                    <DoorOpen className="mx-auto text-slate-300 mb-2" size={44} />
-                    <h4 className="font-bold text-slate-700 text-sm mb-1">Belum Ada Kamar yang Tersedia</h4>
-                    <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto">
-                      Kamar belum terdaftar di database Neon. Klik tombol di bawah untuk menambah kamar perdana.
-                    </p>
-                    <button 
-                      onClick={() => setRoomModal({ type: 'add', data: {} })} 
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center shadow-md transition"
-                    >
-                      <Plus size={14} className="mr-1.5" /> Tambah Kamar Baru
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW: PEMBAYARAN (GABUNGAN MENU TAGIHAN & RIWAYAT TRANSAKSI) */}
+        {/* VIEW: PEMBAYARAN (DENGAN REF ADIBKOS & DETAIL METODE GOPAY DLL) */}
         {/* ========================================================================= */}
         {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
           <div className="space-y-6">
-            {/* Header Menu Pembayaran */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h3 className="text-xl font-black text-slate-800 flex items-center">
                   <CreditCard className="mr-2.5 text-blue-600" size={24} /> Manajemen Pembayaran & Tagihan
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Pantau tagihan sewa berjalan, konfirmasi pelunasan manual, dan cek arsip riwayat transaksi
+                  Invoice resmi format ADIBKOS, verifikasi QRIS otomatis (GoPay, OVO, ShopeePay, DANA), dan arsip mutasi
                 </p>
               </div>
 
               <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-                {/* Switcher Tab Tagihan Aktif vs Riwayat Lunas */}
                 <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button 
                     onClick={() => setPaymentTab('pending')}
@@ -1048,14 +1094,14 @@ export default function App() {
                   onClick={handleGenerateBills} 
                   disabled={isLoading}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap"
-                  title="Generate tagihan bulanan untuk seluruh penghuni aktif"
+                  title="Generate tagihan bulanan berformat ADIBKOS"
                 >
                   <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
                 </button>
               </div>
             </div>
 
-            {/* TAB 1: TAGIHAN BERJALAN / BELUM LUNAS */}
+            {/* TAB 1: TAGIHAN BERJALAN */}
             {paymentTab === 'pending' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -1071,7 +1117,7 @@ export default function App() {
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
                         <th className="p-4">Penghuni & Kamar</th>
-                        <th className="p-4">Ref TokoPay</th>
+                        <th className="p-4">Ref TokoPay (Invoice)</th>
                         <th className="p-4">Nominal</th>
                         <th className="p-4">Status</th>
                         <th className="p-4">Jatuh Tempo</th>
@@ -1088,7 +1134,11 @@ export default function App() {
                               <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
                               <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number} (${room.name})` : 'Belum pilih kamar'}</span>
                             </td>
-                            <td className="p-4 font-mono text-slate-600">{b.ref_id}</td>
+                            <td className="p-4 font-mono font-bold text-slate-700 text-xs">
+                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-200">
+                                {b.ref_id}
+                              </span>
+                            </td>
                             <td className="p-4 font-black text-rose-600 font-mono text-sm">
                               Rp {Number(b.nominal).toLocaleString('id-ID')}
                             </td>
@@ -1105,14 +1155,13 @@ export default function App() {
                                 <button 
                                   onClick={() => handleSetLunasManual(b.id, b.user_id)} 
                                   className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center"
-                                  title="Tandai tagihan lunas secara manual (misal uang tunai / transfer langsung)"
+                                  title="Tandai tagihan lunas manual (Tunai)"
                                 >
-                                  <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Manual)
+                                  <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
                                 </button>
                                 <button 
                                   onClick={() => setBillModal(b)} 
                                   className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center"
-                                  title="Ubah nominal tagihan kamar ini"
                                 >
                                   <Edit size={13} className="mr-1.5 text-blue-600" /> Edit Nominal
                                 </button>
@@ -1127,7 +1176,7 @@ export default function App() {
                           <td colSpan={6} className="p-10 text-center text-slate-400">
                             <CheckCircle size={40} className="mx-auto text-emerald-500 mb-2 opacity-80" />
                             <p className="font-bold text-slate-700 text-sm">Semua Tagihan Sewa Lunas!</p>
-                            <p className="text-xs text-slate-400 mt-1">Tidak ada tagihan tertunda yang perlu ditagihkan kepada anak kos.</p>
+                            <p className="text-xs text-slate-400 mt-1">Tidak ada tagihan tertunda yang perlu ditagihkan.</p>
                           </td>
                         </tr>
                       )}
@@ -1137,7 +1186,7 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
+            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS DENGAN DETAIL METODE BAYAR */}
             {paymentTab === 'history' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -1154,7 +1203,8 @@ export default function App() {
                       <tr>
                         <th className="p-4">Tanggal Pembayaran</th>
                         <th className="p-4">Penghuni & Kamar</th>
-                        <th className="p-4">Ref ID Transaksi</th>
+                        <th className="p-4">Ref TokoPay (Invoice)</th>
+                        <th className="p-4">Metode Bayar</th>
                         <th className="p-4">Nominal Masuk</th>
                         <th className="p-4">Status</th>
                         <th className="p-4 text-center">Aksi</th>
@@ -1173,7 +1223,14 @@ export default function App() {
                               <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
                               <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number}` : '-'}</span>
                             </td>
-                            <td className="p-4 font-mono text-slate-600">{b.ref_id}</td>
+                            <td className="p-4 font-mono font-bold text-slate-700 text-xs">
+                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200">
+                                {b.ref_id}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              {renderPaymentBadge(b.payment_method)}
+                            </td>
                             <td className="p-4 font-black text-emerald-600 font-mono text-sm">
                               Rp {Number(b.nominal).toLocaleString('id-ID')}
                             </td>
@@ -1186,7 +1243,6 @@ export default function App() {
                               <button 
                                 onClick={() => handleDeleteHistory(b.id)} 
                                 className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center"
-                                title="Hapus catatan riwayat transaksi ini"
                               >
                                 <Trash2 size={13} className="mr-1.5" /> Hapus
                               </button>
@@ -1197,7 +1253,7 @@ export default function App() {
 
                       {historyBillsList.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="p-10 text-center text-slate-400">
+                          <td colSpan={7} className="p-10 text-center text-slate-400">
                             <History size={40} className="mx-auto text-slate-300 mb-2" />
                             <p className="font-bold text-slate-700 text-sm">Belum Ada Riwayat Transaksi</p>
                             <p className="text-xs text-slate-400 mt-1">Transaksi yang sudah lunas akan tercatat otomatis di sini.</p>
@@ -1384,14 +1440,12 @@ export default function App() {
                 <button 
                   onClick={handleExportExcel}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition"
-                  title="Unduh File Excel Asli (.xls) untuk Microsoft Excel"
                 >
                   <FileSpreadsheet size={15} className="mr-2" /> Export Excel (.xls)
                 </button>
                 <button 
                   onClick={handlePrintReport}
                   className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition"
-                  title="Cetak Laporan Format Tabel Resmi"
                 >
                   <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
                 </button>
@@ -1532,14 +1586,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
+            {/* TABEL BUKU KAS GABUNGAN DI LAYAR DENGAN METODE BAYAR */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                 <div>
                   <h4 className="font-black text-slate-800 text-base flex items-center">
                     <FileSpreadsheet className="mr-2 text-emerald-600" size={18} /> Buku Kas Mutasi Keuangan (Pratinjau Spreadsheet)
                   </h4>
-                  <p className="text-xs text-slate-400 mt-0.5">Seluruh arus masuk dan keluar tercatat kronologis seperti tabel Excel</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Rincian mutasi kas lengkap dengan channel pembayaran anak kos</p>
                 </div>
                 <button
                   onClick={handleExportExcel}
@@ -1558,6 +1612,7 @@ export default function App() {
                       <th className="p-3 text-center">Tipe</th>
                       <th className="p-3">Kamar / Kategori</th>
                       <th className="p-3">Keterangan / Penghuni</th>
+                      <th className="p-3 text-center">Metode Bayar</th>
                       <th className="p-3 text-right">Pemasukan</th>
                       <th className="p-3 text-right">Pengeluaran</th>
                     </tr>
@@ -1576,6 +1631,9 @@ export default function App() {
                         </td>
                         <td className="p-3 font-semibold text-slate-700">{t.category}</td>
                         <td className="p-3 text-slate-600">{t.description}</td>
+                        <td className="p-3 text-center">
+                          {renderPaymentBadge(t.paymentMethod)}
+                        </td>
                         <td className="p-3 text-right font-black text-sky-600 font-mono">
                           {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
                         </td>
@@ -1587,7 +1645,7 @@ export default function App() {
 
                     {combinedReportTransactions.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-400">
+                        <td colSpan={8} className="p-8 text-center text-slate-400">
                           Tidak ada transaksi yang tercatat pada rentang tanggal ini.
                         </td>
                       </tr>
@@ -1596,12 +1654,12 @@ export default function App() {
                   {combinedReportTransactions.length > 0 && (
                     <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-800">
                       <tr>
-                        <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-[11px]">Total Kas:</td>
+                        <td colSpan={6} className="p-3 text-right uppercase tracking-wider text-[11px]">Total Kas:</td>
                         <td className="p-3 text-right font-black text-sky-600 font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
                         <td className="p-3 text-right font-black text-rose-600 font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
                       </tr>
                       <tr className="bg-slate-100/70 border-t border-slate-200">
-                        <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-[11px]">Keuntungan Bersih:</td>
+                        <td colSpan={6} className="p-3 text-right uppercase tracking-wider text-[11px]">Keuntungan Bersih:</td>
                         <td colSpan={2} className={`p-3 text-right font-black text-sm font-mono ${reportKeuntunganBersih >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                           Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
                         </td>
@@ -1648,11 +1706,12 @@ export default function App() {
                     <tr className="bg-slate-200 text-black">
                       <th className="border border-black p-2 text-center w-10">No</th>
                       <th className="border border-black p-2 text-center w-24">Tanggal</th>
-                      <th className="border border-black p-2 text-center w-24">Tipe</th>
-                      <th className="border border-black p-2 text-left w-36">Kamar / Kategori</th>
+                      <th className="border border-black p-2 text-center w-20">Tipe</th>
+                      <th className="border border-black p-2 text-left w-32">Kamar / Kategori</th>
                       <th className="border border-black p-2 text-left">Keterangan / Penghuni</th>
-                      <th className="border border-black p-2 text-right w-28">Pemasukan</th>
-                      <th className="border border-black p-2 text-right w-28">Pengeluaran</th>
+                      <th className="border border-black p-2 text-center w-24">Metode Bayar</th>
+                      <th className="border border-black p-2 text-right w-24">Pemasukan</th>
+                      <th className="border border-black p-2 text-right w-24">Pengeluaran</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1663,6 +1722,7 @@ export default function App() {
                         <td className="border border-black p-1.5 text-center font-bold">{t.type}</td>
                         <td className="border border-black p-1.5">{t.category}</td>
                         <td className="border border-black p-1.5">{t.description}</td>
+                        <td className="border border-black p-1.5 text-center font-semibold">{t.paymentMethod}</td>
                         <td className="border border-black p-1.5 text-right font-mono font-semibold">
                           {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
                         </td>
@@ -1674,7 +1734,7 @@ export default function App() {
 
                     {combinedReportTransactions.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="border border-black p-4 text-center">
+                        <td colSpan={8} className="border border-black p-4 text-center">
                           Tidak ada catatan transaksi pada periode yang dipilih.
                         </td>
                       </tr>
@@ -1682,12 +1742,12 @@ export default function App() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-100 font-bold">
-                      <td colSpan={5} className="border border-black p-2 text-right uppercase">TOTAL KESELURUHAN:</td>
+                      <td colSpan={6} className="border border-black p-2 text-right uppercase">TOTAL KESELURUHAN:</td>
                       <td className="border border-black p-2 text-right font-mono">Rp {reportPemasukan.toLocaleString('id-ID')}</td>
                       <td className="border border-black p-2 text-right font-mono">Rp {reportPengeluaran.toLocaleString('id-ID')}</td>
                     </tr>
                     <tr className="bg-slate-200 font-black text-xs">
-                      <td colSpan={5} className="border border-black p-2.5 text-right uppercase">SALDO AKHIR (LABA BERSIH):</td>
+                      <td colSpan={6} className="border border-black p-2.5 text-right uppercase">SALDO AKHIR (LABA BERSIH):</td>
                       <td colSpan={2} className="border border-black p-2.5 text-right font-mono text-sm">
                         Rp {reportKeuntunganBersih.toLocaleString('id-ID')}
                       </td>
@@ -1869,7 +1929,6 @@ export default function App() {
                               <button 
                                 type="submit" 
                                 className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs"
-                                title="Simpan Device ID"
                               >
                                 Simpan
                               </button>
@@ -1883,7 +1942,6 @@ export default function App() {
                                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
                                   : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
                               }`}
-                              title="Klik untuk ubah status online/offline hardware"
                             >
                               <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${r.fingerprint_status ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                               {r.fingerprint_status ? 'ONLINE' : 'OFFLINE'}
@@ -2035,6 +2093,7 @@ export default function App() {
                       <div>
                         <span className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-xs mb-2 inline-block">Belum Lunas</span>
                         <h2 className="text-4xl font-black text-slate-800 my-4">Rp {pendingBill.nominal.toLocaleString()}</h2>
+                        <p className="text-xs font-mono font-bold text-slate-500 mb-2">Invoice: {pendingBill.ref_id}</p>
                         <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {new Date(pendingBill.due_date).toLocaleDateString()}</p>
                         <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
                       </div>
@@ -2069,7 +2128,6 @@ export default function App() {
              </div>
           )}
 
-          {}
           {view === 'resident_fingerprint' && (
              <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
                 <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
@@ -2193,12 +2251,21 @@ export default function App() {
                {historyBills.length > 0 ? (
                  <div className="overflow-x-auto rounded-lg border border-slate-200">
                    <table className="w-full text-left text-sm whitespace-nowrap">
-                     <thead className="bg-slate-100"><tr><th className="p-4">Bulan Tagihan</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Status</th></tr></thead>
+                     <thead className="bg-slate-100">
+                       <tr>
+                         <th className="p-4">Bulan Tagihan</th>
+                         <th className="p-4">Ref TokoPay (Invoice)</th>
+                         <th className="p-4">Metode Bayar</th>
+                         <th className="p-4">Nominal</th>
+                         <th className="p-4">Status</th>
+                       </tr>
+                     </thead>
                      <tbody className="divide-y divide-slate-100">
                        {historyBills.map(b => (
                          <tr key={b.id} className="hover:bg-slate-50">
                            <td className="p-4">{b.month}</td>
-                           <td className="p-4 font-mono text-xs text-slate-500">{b.ref_id}</td>
+                           <td className="p-4 font-mono text-xs font-bold text-slate-700">{b.ref_id}</td>
+                           <td className="p-4">{renderPaymentBadge(b.payment_method)}</td>
                            <td className="p-4 font-bold text-slate-800">Rp {b.nominal.toLocaleString()}</td>
                            <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
                          </tr>
@@ -2215,16 +2282,17 @@ export default function App() {
           )}
         </div>
 
-        { }
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
               <h3 className="text-xl font-bold mb-1">Scan QRIS (TokoPay)</h3>
-              <p className="text-xs text-slate-500 font-mono mb-4">Ref: {paymentModal.ref_id}</p>
+              <p className="text-xs text-blue-600 font-mono font-bold mb-4 bg-blue-50 py-1 rounded-lg">Invoice: {paymentModal.ref_id}</p>
               
               <div className="bg-slate-100 p-2 rounded-xl mb-4 min-h-[250px] flex justify-center items-center border-2 border-dashed border-slate-300">
                  {qrisData ? <img src={qrisData} alt="QRIS" className="w-full rounded-lg" /> : <div className="text-slate-500 font-bold flex flex-col items-center"><Activity className="animate-spin mb-2 text-blue-500" size={32}/> Memproses QR...</div>}
               </div>
+
+              <p className="text-[11px] text-slate-400 mb-3">Dapat dibayar menggunakan GoPay, ShopeePay, OVO, DANA, BCA, Livin, dll.</p>
 
               <button
                 type="button"
