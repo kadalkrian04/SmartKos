@@ -37,7 +37,7 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
                 localStorage.removeItem('smartkos_view');
                 window.location.reload();
               }}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition cursor-pointer"
             >
               Segarkan & Pulihkan Halaman
             </button>
@@ -166,6 +166,57 @@ const formatDueDate25 = (dateVal: any) => {
   } catch (e) {
     return '25/-';
   }
+};
+
+// Evaluasi status pembayaran kamar berdasarkan aturan tanggal 25
+const isResidentPaid = (resident: any, residentBills: any[]) => {
+  if (!resident) return false;
+
+  const hasLunasBill = residentBills.some(b => b.status === 'lunas');
+  const pendingBills = residentBills.filter(b => b.status === 'pending');
+  const hasPendingBill = pendingBills.length > 0;
+
+  // Cek apakah penghuni sudah pernah melakukan pembayaran atau akses sidik jari telah aktif
+  const isEverPaid = Boolean(
+    hasLunasBill || 
+    resident.is_fingerprint_active || 
+    (resident.active_until && new Date(resident.active_until).getTime() > 0)
+  );
+
+  // Jika penghuni baru belum pernah membayar sama sekali, statusnya Belum Lunas
+  if (!isEverPaid) {
+    return false;
+  }
+
+  // Jika tidak ada tagihan pending yang tertahan, statusnya Lunas
+  if (!hasPendingBill) {
+    return true;
+  }
+
+  // Jika ada tagihan pending berjalan, periksa apakah tanggal hari ini sudah melewati tanggal 25
+  const now = new Date();
+  const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const isOverdue = pendingBills.some(b => {
+    let dueYear = now.getFullYear();
+    let dueMonth = now.getMonth();
+    let dueDay = 25;
+
+    if (b.due_date) {
+      const d = new Date(b.due_date);
+      if (!isNaN(d.getTime())) {
+        dueYear = d.getFullYear();
+        dueMonth = d.getMonth();
+        dueDay = 25;
+      }
+    }
+
+    const dueDateOnly = new Date(dueYear, dueMonth, dueDay);
+    return todayOnly.getTime() > dueDateOnly.getTime();
+  });
+
+  // Sebelum tanggal 25 (misal tanggal 1-25), status kamar tetap LUNAS
+  return !isOverdue;
 };
 
 function AppContent() {
@@ -680,11 +731,6 @@ function AppContent() {
   const totalPengeluaran = safeExpenses
     .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
 
-  const unpaidTenantsSet = new Set(
-    safeBills.filter(b => b.status === 'pending').map(b => b.user_id)
-  );
-  const totalBelumLunas = unpaidTenantsSet.size;
-
   const isRoomOccupied = (r: any) => {
     if (!r) return false;
     const hasResident = safeUsers.some(u => 
@@ -695,6 +741,20 @@ function AppContent() {
     );
     return hasResident || r.status === 'occupied' || Boolean(r.resident_id);
   };
+
+  // Hitung jumlah penyewa yang benar-benar belum lunas (overdue lewat tgl 25 atau belum pernah bayar)
+  const unpaidTenantsCount = safeRooms.filter(r => {
+    if (!isRoomOccupied(r)) return false;
+    const resident = safeUsers.find(u => 
+      (r.resident_id && String(u.id).trim() === String(r.resident_id).trim()) ||
+      (u.room_id && (String(u.room_id).trim() === String(r.id).trim() || String(u.room_id).trim() === String(r.number).trim()))
+    );
+    const targetUserId = resident?.id || r.resident_id;
+    const residentBills = safeBills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
+    return !isResidentPaid(resident, residentBills);
+  }).length;
+
+  const totalBelumLunas = unpaidTenantsCount;
 
   const totalKamarCount = safeRooms.length || 1;
   const kamarTerisiCount = safeRooms.filter(r => isRoomOccupied(r)).length;
@@ -934,8 +994,8 @@ function AppContent() {
           <form onSubmit={handleLogin} className="space-y-4">
             <input type="text" name="username" defaultValue={lastRegUsername} placeholder="Username" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
             <input type="password" name="password" placeholder="Password" autoComplete="current-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow hover:bg-blue-700">Login</button>
-            <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline">Daftar Baru</button></p>
+            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow hover:bg-blue-700 cursor-pointer">Login</button>
+            <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline cursor-pointer">Daftar Baru</button></p>
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3">
@@ -965,8 +1025,8 @@ function AppContent() {
               <label className="block text-xs font-bold text-slate-600 mb-1">Password</label>
               <input type="password" name="password" placeholder="Password akun" autoComplete="new-password" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
             </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700 transition mt-2">Daftar Akun</button>
-            <p className="text-center text-sm text-slate-600 mt-3">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline">Login</button></p>
+            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700 transition mt-2 cursor-pointer">Daftar Akun</button>
+            <p className="text-center text-sm text-slate-600 mt-3">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline cursor-pointer">Login</button></p>
           </form>
         )}
       </div>
@@ -990,12 +1050,12 @@ function AppContent() {
             { id: 'admin_users', icon: Users, label: 'Kelola User' },
             { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
           ].map(item => (
-            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${(view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history'))) ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition cursor-pointer ${(view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history'))) ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
               <item.icon size={18} /> <span>{item.label}</span>
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition"><LogOut size={18} className="mr-3" /> Keluar</button></div>
+        <div className="p-4 border-t border-slate-800"><button onClick={logout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition cursor-pointer"><LogOut size={18} className="mr-3" /> Keluar</button></div>
       </div>
 
       <div className="flex-1 p-4 md:p-8 overflow-y-auto print:p-0 print:bg-white">
@@ -1004,7 +1064,7 @@ function AppContent() {
             <h2 className="text-xl font-black text-slate-800">Dashboard Manajemen SmartKos</h2>
             <p className="text-xs text-slate-500">Monitoring Hunian, Akses Pintu Biometrik & Arus Kas</p>
           </div>
-          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold text-sm">
+          <button onClick={() => fetchDashboardData(true)} className="flex items-center text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition font-bold text-sm cursor-pointer">
             <RefreshCcw size={16} className={`mr-2 ${isLoading && 'animate-spin'}`}/> Segarkan
           </button>
         </div>
@@ -1040,7 +1100,7 @@ function AppContent() {
                   <div className="flex items-center gap-1.5">
                     <button 
                       onClick={() => setExpenseModal(true)} 
-                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition" 
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer" 
                       title="Catat Pengeluaran"
                     >
                       <Plus size={14} />
@@ -1113,19 +1173,19 @@ function AppContent() {
                   <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button 
                       onClick={() => setFloorFilter('all')} 
-                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Semua ({sortedRooms.length})
                     </button>
                     <button 
                       onClick={() => setFloorFilter('lt2')} 
-                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 2 ({roomsLantai2.length})
                     </button>
                     <button 
                       onClick={() => setFloorFilter('lt3')} 
-                      className={`px-3 py-1.5 rounded-lg transition ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${floorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                       Lt 3 ({roomsLantai3.length})
                     </button>
@@ -1133,7 +1193,7 @@ function AppContent() {
 
                   <button 
                     onClick={() => setRoomModal({ type: 'add', data: {} })} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
                   >
                     <Plus size={15} className="mr-1.5" /> Tambah Kamar
                   </button>
@@ -1150,15 +1210,10 @@ function AppContent() {
 
                   const targetUserId = resident?.id || room.resident_id;
                   const residentBills = safeBills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
-                  const hasPendingBill = residentBills.some(b => b.status === 'pending');
-                  const hasLunasBill = residentBills.some(b => b.status === 'lunas');
                   const isOccupied = Boolean(resident || room.status === 'occupied' || room.resident_id);
 
-                  const isPaid = Boolean(
-                    (resident?.is_fingerprint_active && !hasPendingBill) || 
-                    (hasLunasBill && !hasPendingBill) ||
-                    (resident?.active_until && new Date(resident.active_until) > new Date() && !hasPendingBill)
-                  );
+                  // Gunakan fungsi penilaian cerdas aturan tanggal 25
+                  const isPaid = isResidentPaid(resident, residentBills);
 
                   const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
 
@@ -1244,14 +1299,14 @@ function AppContent() {
                         <div className="flex items-center gap-1.5">
                           <button 
                             onClick={() => setRoomModal({ type: 'edit', data: room })}
-                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs"
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition flex items-center border border-blue-200 shadow-xs cursor-pointer"
                             title="Edit Data Kamar"
                           >
                             <Edit size={13} className="mr-1" /> Edit
                           </button>
                           <button 
                             onClick={() => handleDeleteRoom(room.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Hapus Kamar"
                           >
                             <Trash2 size={14} />
@@ -1283,14 +1338,14 @@ function AppContent() {
                 <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button 
                     onClick={() => setPaymentTab('pending')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition ${paymentTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${paymentTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     <Clock size={14} className="mr-1.5 text-amber-500" />
                     Tagihan Berjalan ({pendingBillsList.length})
                   </button>
                   <button 
                     onClick={() => setPaymentTab('history')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition ${paymentTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${paymentTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     <CheckCircle size={14} className="mr-1.5 text-emerald-500" />
                     Riwayat Lunas ({historyBillsList.length})
@@ -1300,7 +1355,7 @@ function AppContent() {
                 <button 
                   onClick={handleGenerateBills} 
                   disabled={isLoading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap cursor-pointer"
                 >
                   <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
                 </button>
@@ -1360,13 +1415,13 @@ function AppContent() {
                               <div className="inline-flex items-center gap-2">
                                 <button 
                                   onClick={() => handleSetLunasManual(b.id, b.user_id)} 
-                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center"
+                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
                                 >
                                   <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Tunai)
                                 </button>
                                 <button 
                                   onClick={() => setBillModal(b)} 
-                                  className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center"
+                                  className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center cursor-pointer"
                                 >
                                   <Edit size={13} className="mr-1.5 text-blue-600" /> Edit Nominal
                                 </button>
@@ -1447,7 +1502,7 @@ function AppContent() {
                             <td className="p-4 text-center">
                               <button 
                                 onClick={() => handleDeleteHistory(b.id)} 
-                                className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center"
+                                className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center cursor-pointer"
                               >
                                 <Trash2 size={13} className="mr-1.5" /> Hapus
                               </button>
@@ -1483,7 +1538,7 @@ function AppContent() {
               </div>
               <button 
                 onClick={() => setExpenseModal(true)} 
-                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm"
+                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm cursor-pointer"
               >
                 <Plus size={16} className="mr-2" /> Catat Pengeluaran Baru
               </button>
@@ -1508,7 +1563,7 @@ function AppContent() {
                       <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
                       <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
                       <td className="p-4">
-                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition">
+                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition cursor-pointer">
                           <Trash2 size={16} />
                         </button>
                       </td>
@@ -1584,7 +1639,7 @@ function AppContent() {
                             setIsLoading(false);
                           }
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer"
                       >
                         <ShieldCheck size={14} className="mr-1.5" />
                         {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
@@ -1629,7 +1684,7 @@ function AppContent() {
                 </div>
                 <button 
                   onClick={handleApplyReportFilter}
-                  className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-5 py-2.5 rounded-xl font-bold flex items-center transition shadow-sm"
+                  className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-5 py-2.5 rounded-xl font-bold flex items-center transition shadow-sm cursor-pointer"
                 >
                   <Search size={14} className="mr-1.5" /> Terapkan
                 </button>
@@ -1638,13 +1693,13 @@ function AppContent() {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleExportExcel}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 transition cursor-pointer"
                 >
                   <FileSpreadsheet size={15} className="mr-2" /> Export Excel (.xls)
                 </button>
                 <button 
                   onClick={handlePrintReport}
-                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition"
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-xs transition cursor-pointer"
                 >
                   <Printer size={15} className="mr-2 text-slate-500" /> Cetak / PDF
                 </button>
@@ -1796,7 +1851,7 @@ function AppContent() {
                 </div>
                 <button
                   onClick={handleExportExcel}
-                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center transition"
+                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center transition cursor-pointer"
                 >
                   <Download size={14} className="mr-1.5" /> Unduh .XLS
                 </button>
@@ -1972,7 +2027,7 @@ function AppContent() {
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                <h3 className="font-bold text-lg flex items-center"><FileText className="mr-2 text-blue-600"/> Log Buka Pintu (Fingerprint)</h3>
-               <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
+               <button onClick={handleClearLogs} className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center shadow-sm cursor-pointer"><Trash2 size={14} className="mr-1"/> Kosongkan Log</button>
             </div>
             <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-100 border-b"><tr><th className="p-4">Waktu</th><th className="p-4">User</th><th className="p-4">Aksi / Pesan Sistem</th></tr></thead>
@@ -2006,13 +2061,13 @@ function AppContent() {
                 <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button 
                     onClick={() => setSettingsTab('tokopay')} 
-                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${settingsTab === 'tokopay' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     <ShieldCheck size={14} className="mr-1.5" /> API TokoPay (QRIS)
                   </button>
                   <button 
                     onClick={() => setSettingsTab('devices')} 
-                    className={`px-4 py-2 rounded-lg flex items-center transition ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center transition cursor-pointer ${settingsTab === 'devices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     <Cpu size={14} className="mr-1.5" /> Perangkat Fingerprint
                   </button>
@@ -2062,14 +2117,14 @@ function AppContent() {
                   <div className="pt-4 flex flex-wrap items-center gap-3">
                     <button 
                       type="submit" 
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center shadow-md shadow-blue-600/20 transition cursor-pointer"
                     >
                       <Save size={16} className="mr-2"/> Simpan Konfigurasi
                     </button>
                     <button 
                       type="button" 
                       onClick={handleTestTokoPay} 
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center transition border border-slate-200"
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center transition border border-slate-200 cursor-pointer"
                     >
                       <RefreshCcw size={15} className="mr-2 text-slate-500"/> Uji Koneksi API
                     </button>
@@ -2123,7 +2178,7 @@ function AppContent() {
                               />
                               <button 
                                 type="submit" 
-                                className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs"
+                                className="bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
                               >
                                 Simpan
                               </button>
@@ -2132,7 +2187,7 @@ function AppContent() {
                           <td className="p-3.5 text-center">
                             <button 
                               onClick={() => handleToggleRoomFingerprint(r.id, r.fingerprint_status)}
-                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition inline-flex items-center ${
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition inline-flex items-center cursor-pointer ${
                                 r.fingerprint_status 
                                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
                                   : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
@@ -2197,8 +2252,8 @@ function AppContent() {
               </div>
 
               <div className="flex gap-2">
-                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm">Batal</button>
-                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 shadow-md">Simpan</button>
+                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 shadow-md cursor-pointer">Simpan</button>
               </div>
             </form>
           </div>
@@ -2224,8 +2279,8 @@ function AppContent() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2.5 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm">Batal</button>
-                <button type="submit" disabled={isLoading} className="flex-1 p-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Simpan</button>
+                <button type="button" onClick={() => setRoomModal(null)} className="flex-1 p-2.5 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm cursor-pointer">Batal</button>
+                <button type="submit" disabled={isLoading} className="flex-1 p-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 cursor-pointer">Simpan</button>
               </div>
             </form>
           </div>
@@ -2238,7 +2293,10 @@ function AppContent() {
               <h3 className="font-bold text-lg mb-2">Edit Nominal Tagihan</h3>
               <p className="text-sm text-slate-500 mb-4">User ID: {billModal.user_id}</p>
               <input type="number" name="nominal" defaultValue={billModal.nominal} className="w-full p-3 border rounded mb-4 text-lg font-bold text-red-600" required />
-              <div className="flex gap-2"><button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold">Batal</button><button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold">Simpan</button></div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setBillModal(null)} className="flex-1 p-2 bg-slate-200 rounded font-bold cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 p-2 bg-blue-600 text-white rounded font-bold cursor-pointer">Simpan</button>
+              </div>
             </form>
           </div>
         )}
@@ -2274,7 +2332,7 @@ function AppContent() {
                     type="button"
                     onClick={() => handleChangePaymentMethod(changeMethodModal.id, item.label)}
                     disabled={isLoading}
-                    className={`p-3 rounded-xl border font-bold transition flex items-center justify-center ${item.badge} hover:shadow-xs hover:scale-[1.02]`}
+                    className={`p-3 rounded-xl border font-bold transition flex items-center justify-center ${item.badge} hover:shadow-xs hover:scale-[1.02] cursor-pointer`}
                   >
                     {item.label}
                   </button>
@@ -2284,7 +2342,7 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setChangeMethodModal(null)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition cursor-pointer"
               >
                 Tutup
               </button>
@@ -2301,7 +2359,7 @@ function AppContent() {
         <div className="min-h-screen bg-slate-100 p-4 md:p-8">
           <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
              <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={16} className="mr-2"/> Keluar</button>
+             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition cursor-pointer"><LogOut size={16} className="mr-2"/> Keluar</button>
           </nav>
           <div className="max-w-4xl mx-auto">
              <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
@@ -2314,7 +2372,7 @@ function AppContent() {
                    <h3 className="text-3xl font-black text-slate-800 mb-2">{room.number}</h3>
                    <p className="text-sm text-slate-500 mb-4">{room.name}</p>
                    <p className="text-xl font-bold text-blue-600 mb-6">Rp {Number(room.price || 0).toLocaleString('id-ID')}/bln</p>
-                   <button onClick={() => handleChooseRoom(room.id)} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow hover:bg-blue-700">Pilih Kamar Ini</button>
+                   <button onClick={() => handleChooseRoom(room.id)} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow hover:bg-blue-700 cursor-pointer">Pilih Kamar Ini</button>
                  </div>
                ))}
              </div>
@@ -2332,14 +2390,14 @@ function AppContent() {
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition"><LogOut size={18} className="mr-2 hidden md:block"/> Keluar</button>
+          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition cursor-pointer"><LogOut size={18} className="mr-2 hidden md:block"/> Keluar</button>
         </nav>
 
         <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
-           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
-           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
-           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
-           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
+           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
+           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
         </div>
 
         <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
@@ -2354,7 +2412,7 @@ function AppContent() {
                         <h2 className="text-4xl font-black text-slate-800 my-4">Rp {Number(pendingBill.nominal).toLocaleString('id-ID')}</h2>
                         <p className="text-xs font-mono font-bold text-slate-500 mb-2">Invoice: {pendingBill.ref_id}</p>
                         <p className="text-sm text-slate-500 mb-6">Jatuh Tempo: {formatDueDate25(pendingBill.due_date)}</p>
-                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">Bayar dengan QRIS</button>
+                        <button onClick={() => handlePayQRIS(pendingBill)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg cursor-pointer">Bayar dengan QRIS</button>
                       </div>
                     </div>
                   ) : (
@@ -2408,14 +2466,14 @@ function AppContent() {
                           <button
                             onClick={handleStartEnrollment}
                             disabled={isLoading}
-                            className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition"
+                            className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition cursor-pointer"
                           >
                             <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
                           </button>
                           <button
                             onClick={handleResetResidentFp}
                             disabled={isLoading}
-                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200"
+                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200 cursor-pointer"
                           >
                             <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
                           </button>
@@ -2455,7 +2513,7 @@ function AppContent() {
 
                              <button
                                onClick={handleCancelEnrollment}
-                               className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1"
+                               className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1 cursor-pointer"
                              >
                                Batalkan Perekaman
                              </button>
@@ -2468,7 +2526,7 @@ function AppContent() {
                                <button 
                                  onClick={handleStartEnrollment} 
                                  disabled={isLoading} 
-                                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm"
+                                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm cursor-pointer"
                                >
                                  <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
                                </button>
@@ -2492,7 +2550,7 @@ function AppContent() {
                                    }
                                  }}
                                  disabled={isLoading} 
-                                 className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200"
+                                 className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200 cursor-pointer"
                                >
                                  <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
                                </button>
@@ -2618,7 +2676,7 @@ function AppContent() {
                    </div>
 
                    <div className="pt-2">
-                     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition flex items-center justify-center">
+                     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition flex items-center justify-center cursor-pointer">
                        <Save size={16} className="mr-2" /> Simpan Perubahan Profil
                      </button>
                    </div>
@@ -2644,7 +2702,7 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setPaymentModal(null)}
-                className="w-full py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+                className="w-full py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition cursor-pointer"
               >
                 Tutup
               </button>
@@ -2669,7 +2727,7 @@ function AppContent() {
                   setEnrollSuccessModal(null);
                   setView('resident_dashboard');
                 }}
-                className="w-full py-3.5 bg-green-600 text-white rounded-xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-600/30 transition"
+                className="w-full py-3.5 bg-green-600 text-white rounded-xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-600/30 transition cursor-pointer"
               >
                 Selesai & Ke Beranda
               </button>
