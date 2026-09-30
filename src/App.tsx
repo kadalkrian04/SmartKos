@@ -168,9 +168,10 @@ export default function App() {
     }
   }, [currentUser, view]);
 
-  const fetchDashboardData = async (isManual = false) => {
+  // Fungsi fetch data dengan opsi background polling (tanpa kedip spinner)
+  const fetchDashboardData = async (isManual = false, isBackground = false) => {
     if (!currentUser) return;
-    setIsLoading(true);
+    if (!isBackground) setIsLoading(true);
     try {
       if(currentUser.role === 'admin') {
          const [resUsers, resRooms, resBills, resLogs, resSettings, resExpenses] = await Promise.all([
@@ -203,15 +204,24 @@ export default function App() {
          }
       }
     } catch (error) {
-      showToast('Gagal memuat data dari server.', 'error');
+      if (!isBackground) showToast('Gagal memuat data dari server.', 'error');
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   };
 
+  // Polling Real-Time setiap 4 detik (Otomatis & Halus di Latar Belakang)
   useEffect(() => {
-    if (view !== 'login' && view !== 'register') fetchDashboardData();
-  }, [view]);
+    if (!currentUser || view === 'login' || view === 'register') return;
+
+    fetchDashboardData(false, false);
+
+    const realTimeInterval = setInterval(() => {
+      fetchDashboardData(false, true);
+    }, 4000);
+
+    return () => clearInterval(realTimeInterval);
+  }, [currentUser, view]);
 
   useEffect(() => {
     let intervalId: any;
@@ -589,15 +599,28 @@ export default function App() {
   const totalPengeluaran = expenses
     .reduce((sum, e) => sum + (Number(e.nominal) || 0), 0);
 
+  // Hitung jumlah penyewa yang belum lunas
   const unpaidTenantsSet = new Set(
     bills.filter(b => b.status === 'pending').map(b => b.user_id)
   );
   const totalBelumLunas = unpaidTenantsSet.size;
 
+  // Helper pencocokan kamar terisi yang akurat
+  const isRoomOccupied = (r: any) => {
+    if (!r) return false;
+    const hasResident = users.some(u => 
+      u.role === 'resident' && (
+        (u.room_id && (String(u.room_id) === String(r.id) || String(u.room_id) === String(r.number))) ||
+        (r.resident_id && String(r.resident_id) === String(u.id))
+      )
+    );
+    return hasResident || r.status === 'occupied' || Boolean(r.resident_id);
+  };
+
   const totalKamarCount = rooms.length || 1;
-  const kamarTerisiCount = rooms.filter(r => r.status === 'occupied').length;
-  const kamarKosongCount = rooms.filter(r => r.status === 'available').length;
-  const occupancyPercent = Math.round((kamarTerisiCount / totalKamarCount) * 100);
+  const kamarTerisiCount = rooms.filter(r => isRoomOccupied(r)).length;
+  const kamarKosongCount = Math.max(0, rooms.length - kamarTerisiCount);
+  const occupancyPercent = rooms.length > 0 ? Math.round((kamarTerisiCount / rooms.length) * 100) : 0;
 
   const handleApplyReportFilter = () => {
     setAppliedStartDate(reportStartDate);
@@ -1043,15 +1066,22 @@ export default function App() {
               {/* GRID DENAH STATUS KAMAR */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayedRooms.map(room => {
-                  const resident = users.find(u => u.room_id === room.id && u.role === 'resident');
-                  const residentBill = bills.find(b => b.user_id === resident?.id);
-                  const isPaid = resident?.is_fingerprint_active;
-                  const isOccupied = room.status === 'occupied' && resident;
+                  const resident = users.find(u => 
+                    u.role === 'resident' && (
+                      (u.room_id && (String(u.room_id) === String(room.id) || String(u.room_id) === String(room.number))) ||
+                      (room.resident_id && String(room.resident_id) === String(u.id))
+                    )
+                  );
+                  const residentBill = bills.find(b => resident && String(b.user_id) === String(resident.id));
+                  const isOccupied = isRoomOccupied(room);
+                  const isPaid = resident ? Boolean(resident.is_fingerprint_active) : (residentBill?.status === 'lunas');
                   const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
 
                   const masukDateStr = resident?.created_at 
                     ? new Date(resident.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                    : '-';
+                    : resident?.active_until 
+                      ? new Date(resident.active_until).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      : '-';
                   
                   const dueRaw = residentBill?.due_date || resident?.active_until;
                   const dueDateStr = dueRaw 
@@ -1100,11 +1130,11 @@ export default function App() {
                           <div className="space-y-1.5 my-3 text-xs">
                             <div className="flex items-center text-slate-700 font-semibold truncate">
                               <UserCheck size={13} className="mr-2 text-slate-400 flex-shrink-0" />
-                              <span className="truncate">{resident.name}</span>
+                              <span className="truncate">{resident?.name || (room.resident_id ? `Penghuni #${room.resident_id}` : 'Penghuni Aktif')}</span>
                             </div>
                             <div className="flex items-center text-slate-500 font-normal">
                               <Phone size={13} className="mr-2 text-slate-400 flex-shrink-0" />
-                              <span>{resident.username ? `@${resident.username}` : '-'}</span>
+                              <span>{resident?.phone || (resident?.username ? `@${resident.username}` : '-')}</span>
                             </div>
                             <div className="flex items-center text-[11px] text-slate-400 pt-0.5">
                               <Calendar size={13} className="mr-2 text-slate-400 flex-shrink-0" />

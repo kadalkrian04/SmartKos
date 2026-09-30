@@ -5,7 +5,12 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { rows } = await sql`SELECT id, username, name, room_id, active_until, is_fingerprint_active, fingerprint_id FROM users WHERE role = 'resident'`;
+      const { rows } = await sql`
+        SELECT id, username, name, address, email, phone, room_id, active_until, is_fingerprint_active, fingerprint_id, created_at 
+        FROM users 
+        WHERE role = 'resident' 
+        ORDER BY id ASC
+      `;
       return res.status(200).json(rows);
     }
 
