@@ -256,6 +256,8 @@ function AppContent() {
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
   const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
+  const [residentFloorFilter, setResidentFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
@@ -2354,32 +2356,14 @@ function AppContent() {
   );
 
   const renderResident = () => {
-    if (!currentUser?.room_id) {
-      return (
-        <div className="min-h-screen bg-slate-100 p-4 md:p-8">
-          <nav className="max-w-4xl mx-auto flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border">
-             <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-             <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition cursor-pointer"><LogOut size={16} className="mr-2"/> Keluar</button>
-          </nav>
-          <div className="max-w-4xl mx-auto">
-             <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border text-center">
-               <h2 className="text-2xl font-black mb-2">Selamat Datang, {currentUser?.name}!</h2>
-               <p className="text-slate-600">Silakan pilih kamar kosong di bawah ini untuk mulai menyewa.</p>
-             </div>
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-               {sortedRooms.filter(r => r.status === 'available').map(room => (
-                 <div key={room.id} className="bg-white p-6 rounded-xl shadow border border-slate-200 text-center hover:border-blue-400 transition">
-                   <h3 className="text-3xl font-black text-slate-800 mb-2">{room.number}</h3>
-                   <p className="text-sm text-slate-500 mb-4">{room.name}</p>
-                   <p className="text-xl font-bold text-blue-600 mb-6">Rp {Number(room.price || 0).toLocaleString('id-ID')}/bln</p>
-                   <button onClick={() => handleChooseRoom(room.id)} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow hover:bg-blue-700 cursor-pointer">Pilih Kamar Ini</button>
-                 </div>
-               ))}
-             </div>
-          </div>
-        </div>
-      );
-    }
+    const availableRooms = sortedRooms.filter(r => r.status === 'available');
+    const availRoomsLt2 = availableRooms.filter(r => getRoomFloor(r) === 2);
+    const availRoomsLt3 = availableRooms.filter(r => getRoomFloor(r) === 3);
+    const displayedAvailRooms = residentFloorFilter === 'lt2' 
+      ? availRoomsLt2 
+      : residentFloorFilter === 'lt3' 
+        ? availRoomsLt3 
+        : availableRooms;
 
     const myBills = safeBills.filter(b => b.user_id === currentUser?.id);
     const pendingBill = myBills.find(b => b.status === 'pending');
@@ -2388,11 +2372,25 @@ function AppContent() {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
+        {/* Top Navbar Konsisten untuk Semua Penghuni */}
         <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
-          <div className="font-black text-xl flex items-center"><Fingerprint className="mr-2 text-blue-600" /> SmartKos</div>
-          <button onClick={logout} className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-2 rounded transition cursor-pointer"><LogOut size={18} className="mr-2 hidden md:block"/> Keluar</button>
+          <div className="font-black text-xl flex items-center">
+            <Fingerprint className="mr-2 text-blue-600" /> SmartKos
+          </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Halo, <strong className="text-slate-800">{currentUser?.name}</strong>
+            </span>
+            <button 
+              onClick={logout} 
+              className="text-red-600 font-bold flex items-center hover:bg-red-50 px-3 py-1.5 rounded-xl transition cursor-pointer text-xs md:text-sm"
+            >
+              <LogOut size={16} className="mr-1.5"/> Keluar
+            </button>
+          </div>
         </nav>
 
+        {/* Tab Navigasi - Selalu Muncul Meskipun Belum Pilih Kamar */}
         <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
            <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
            <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
@@ -2402,7 +2400,148 @@ function AppContent() {
 
         <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
           {view === 'resident_dashboard' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             !currentUser?.room_id ? (
+               /* TAMPILAN PILIH KAMAR BARU: SIMPEL, COMPACT & TIDAK NUMPUK */
+               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+                   <div>
+                     <h3 className="text-xl font-black text-slate-800 flex items-center">
+                       <DoorOpen className="mr-2 text-blue-600" size={24} /> Pilih Kamar Kos Anda
+                     </h3>
+                     <p className="text-xs text-slate-500 mt-0.5">
+                       Selamat datang, <strong>{currentUser?.name}</strong>! Tentukan kamar idaman Anda untuk mulai menyewa.
+                     </p>
+                   </div>
+                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                     {availableRooms.length} Kamar Kosong
+                   </span>
+                 </div>
+
+                 {/* OPSI 1: PILIHAN CEPAT VIA DROPDOWN */}
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                   <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                     Pilihan Cepat (Dropdown)
+                   </label>
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                     <select 
+                       value={selectedRoomId || ''} 
+                       onChange={(e) => setSelectedRoomId(Number(e.target.value) || null)}
+                       className="flex-1 p-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800 cursor-pointer"
+                     >
+                       <option value="">-- Pilih Kamar Dari Daftar --</option>
+                       {availableRooms.map(r => (
+                         <option key={r.id} value={r.id}>
+                           Kamar {r.number} — {r.name} (Rp {Number(r.price).toLocaleString('id-ID')}/bln)
+                         </option>
+                       ))}
+                     </select>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         if (!selectedRoomId) {
+                           showToast('Silakan pilih salah satu kamar terlebih dahulu', 'error');
+                           return;
+                         }
+                         handleChooseRoom(selectedRoomId);
+                       }}
+                       disabled={isLoading || !selectedRoomId}
+                       className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                     >
+                       Pilih Kamar Ini
+                     </button>
+                   </div>
+                 </div>
+
+                 {/* OPSI 2: GRID DENAH KAMAR KOMPAK */}
+                 <div className="space-y-3">
+                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                     <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                       Atau Pilih Langsung Denah Kamar:
+                     </span>
+                     <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                       <button 
+                         onClick={() => setResidentFloorFilter('all')}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                       >
+                         Semua ({availableRooms.length})
+                       </button>
+                       <button 
+                         onClick={() => setResidentFloorFilter('lt2')}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'lt2' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                       >
+                         Lt 2 ({availRoomsLt2.length})
+                       </button>
+                       <button 
+                         onClick={() => setResidentFloorFilter('lt3')}
+                         className={`px-3 py-1 rounded-lg transition cursor-pointer ${residentFloorFilter === 'lt3' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                       >
+                         Lt 3 ({availRoomsLt3.length})
+                       </button>
+                     </div>
+                   </div>
+
+                   {/* Grid Ringkas & Kompak (Tidak Memakan Tempat) */}
+                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+                     {displayedAvailRooms.map(room => {
+                       const isSelected = selectedRoomId === room.id;
+                       const floor = getRoomFloor(room) === 3 ? 'Lt 3' : 'Lt 2';
+                       return (
+                         <div
+                           key={room.id}
+                           onClick={() => setSelectedRoomId(room.id)}
+                           className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col justify-between ${
+                             isSelected 
+                               ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20' 
+                               : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50/60'
+                           }`}
+                         >
+                           <div>
+                             <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
+                               <span>{floor}</span>
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                             </div>
+                             <div className="text-lg font-black text-slate-800 leading-tight">
+                               {room.number}
+                             </div>
+                             <div className="text-[11px] text-slate-500 truncate mt-0.5" title={room.name}>
+                               {room.name}
+                             </div>
+                           </div>
+                           <div className="mt-2 pt-2 border-t border-slate-100">
+                             <div className="text-[11px] font-bold text-blue-600 mb-1.5">
+                               Rp {Number(room.price).toLocaleString('id-ID')}
+                             </div>
+                             <button
+                               type="button"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleChooseRoom(room.id);
+                               }}
+                               disabled={isLoading}
+                               className={`w-full py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                 isSelected 
+                                   ? 'bg-blue-600 text-white shadow-xs' 
+                                   : 'bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700'
+                               }`}
+                             >
+                               Pilih
+                             </button>
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+
+                   {displayedAvailRooms.length === 0 && (
+                     <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                       Tidak ada kamar kosong pada lantai ini.
+                     </div>
+                   )}
+                 </div>
+               </div>
+             ) : (
+               /* JIKA SUDAH PILIH KAMAR: TAMPILKAN TAGIHAN & STATUS KAMAR */
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                   <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
                   {pendingBill ? (
@@ -2442,160 +2581,193 @@ function AppContent() {
                     )}
                   </div>
                 </div>
-             </div>
+               </div>
+             )
           )}
 
           {view === 'resident_fingerprint' && (
-             <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
-                <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
-                {!isActive ? (
-                    <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
-                      <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
-                      <p className="font-bold">Akses Kamar Terkunci</p>
-                      <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
-                    </div>
-                ) : currentUser?.fingerprint_id ? (
-                    <div className="p-6">
-                       <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
-                       <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
-                       <p className="text-sm mt-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">
-                         Pintu kamar Anda sudah bisa dibuka kapan saja dengan menempelkan jari Anda ke sensor di pintu.
-                       </p>
-                       
-                       <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
-                          <button
-                            onClick={handleStartEnrollment}
-                            disabled={isLoading}
-                            className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition cursor-pointer"
-                          >
-                            <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
-                          </button>
-                          <button
-                            onClick={handleResetResidentFp}
-                            disabled={isLoading}
-                            className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200 cursor-pointer"
-                          >
-                            <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
-                          </button>
-                       </div>
-                    </div>
-                ) : (
-                    <div className="p-6 flex flex-col items-center">
-                       <Fingerprint size={80} className={`mb-4 ${isScanningFP ? 'text-blue-500 animate-bounce' : 'text-slate-300'}`} />
-                       {isScanningFP ? (
-                           <div className="w-full max-w-md space-y-4">
-                             <div className="bg-gradient-to-b from-blue-50 to-indigo-50 border-2 border-blue-300 p-5 rounded-2xl shadow-sm text-left">
-                               <div className="flex justify-between items-center mb-3">
-                                 <span className="font-black text-sm text-blue-900 tracking-wide flex items-center">
-                                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping mr-2"></span>
-                                   ALAT SIAGA MEREKAM
-                                 </span>
-                                 <span className="px-3 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
-                                   {enrollCountdown}s
-                                 </span>
+             !currentUser?.room_id ? (
+               <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md mx-auto">
+                 <DoorOpen className="mx-auto text-slate-300 mb-3" size={48} />
+                 <h4 className="font-black text-lg text-slate-800 mb-1">Belum Memilih Kamar</h4>
+                 <p className="text-xs text-slate-500 mb-4">
+                   Fitur pendaftaran sidik jari akan aktif otomatis setelah Anda memilih kamar kos di Beranda.
+                 </p>
+                 <button 
+                   onClick={() => setView('resident_dashboard')} 
+                   className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                 >
+                   Pilih Kamar Sekarang
+                 </button>
+               </div>
+             ) : (
+               <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
+                  <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
+                  {!isActive ? (
+                      <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200">
+                        <XCircle className="mx-auto mb-3 text-red-500" size={40}/>
+                        <p className="font-bold">Akses Kamar Terkunci</p>
+                        <p className="text-sm mt-2">Tagihan sewa kamar Anda belum lunas. Silakan selesaikan pembayaran di menu Beranda agar akses sidik jari otomatis aktif.</p>
+                      </div>
+                  ) : currentUser?.fingerprint_id ? (
+                      <div className="p-6">
+                         <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
+                         <h4 className="font-bold text-2xl text-slate-800">Sidik Jari Aktif & Siap Digunakan!</h4>
+                         <p className="text-sm mt-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 font-medium">
+                           Pintu kamar Anda sudah bisa dibuka kapan saja dengan menempelkan jari Anda ke sensor di pintu.
+                         </p>
+                         
+                         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
+                            <button
+                              onClick={handleStartEnrollment}
+                              disabled={isLoading}
+                              className="flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-sm shadow-md transition cursor-pointer"
+                            >
+                              <RefreshCcw size={16} className="mr-2" /> Rekam Ulang Jari di Pintu
+                            </button>
+                            <button
+                              onClick={handleResetResidentFp}
+                              disabled={isLoading}
+                              className="flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition border border-red-200 cursor-pointer"
+                            >
+                              <Trash2 size={16} className="mr-2" /> Hapus Akses Jari
+                            </button>
+                         </div>
+                      </div>
+                  ) : (
+                      <div className="p-6 flex flex-col items-center">
+                         <Fingerprint size={80} className={`mb-4 ${isScanningFP ? 'text-blue-500 animate-bounce' : 'text-slate-300'}`} />
+                         {isScanningFP ? (
+                             <div className="w-full max-w-md space-y-4">
+                               <div className="bg-gradient-to-b from-blue-50 to-indigo-50 border-2 border-blue-300 p-5 rounded-2xl shadow-sm text-left">
+                                 <div className="flex justify-between items-center mb-3">
+                                   <span className="font-black text-sm text-blue-900 tracking-wide flex items-center">
+                                     <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping mr-2"></span>
+                                     ALAT SIAGA MEREKAM
+                                   </span>
+                                   <span className="px-3 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-full">
+                                     {enrollCountdown}s
+                                   </span>
+                                 </div>
+
+                                 <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">1.</span>
+                                     <span><strong>Tempelkan jari</strong> ke sensor pintu.</span>
+                                   </p>
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">2.</span>
+                                     <span><strong>Angkat jari</strong> Anda dari sensor.</span>
+                                   </p>
+                                   <p className="flex items-start">
+                                     <span className="font-bold text-blue-600 mr-2">3.</span>
+                                     <span><strong>Tempelkan lagi jari yang sama</strong> sampai pintu terbuka!</span>
+                                   </p>
+                                 </div>
                                </div>
 
-                               <div className="space-y-2.5 text-xs text-slate-700 font-medium bg-white/80 p-3 rounded-xl border border-blue-100">
-                                 <p className="flex items-start">
-                                   <span className="font-bold text-blue-600 mr-2">1.</span>
-                                   <span><strong>Tempelkan jari</strong> ke sensor pintu.</span>
-                                 </p>
-                                 <p className="flex items-start">
-                                   <span className="font-bold text-blue-600 mr-2">2.</span>
-                                   <span><strong>Angkat jari</strong> Anda dari sensor.</span>
-                                 </p>
-                                 <p className="flex items-start">
-                                   <span className="font-bold text-blue-600 mr-2">3.</span>
-                                   <span><strong>Tempelkan lagi jari yang sama</strong> sampai pintu terbuka!</span>
-                                 </p>
+                               <button
+                                 onClick={handleCancelEnrollment}
+                                 className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1 cursor-pointer"
+                               >
+                                 Batalkan Perekaman
+                               </button>
+                             </div>
+                         ) : (
+                             <div className="w-full max-w-md space-y-4">
+                               <p className="text-slate-600 text-sm font-medium">Pilih salah satu cara termudah untuk mengaktifkan sidik jari kamar Anda:</p>
+                               
+                               <div className="space-y-3">
+                                 <button 
+                                   onClick={handleStartEnrollment} 
+                                   disabled={isLoading} 
+                                   className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm cursor-pointer"
+                                 >
+                                   <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
+                                 </button>
+
+                                 <button 
+                                   onClick={async () => {
+                                     try {
+                                       setIsLoading(true);
+                                       await axios.put('/api/users', {
+                                         userId: currentUser?.id,
+                                         fingerprint_id: currentUser?.id.toString(),
+                                         is_fingerprint_active: true
+                                       });
+                                       setCurrentUser({ ...currentUser, fingerprint_id: currentUser?.id.toString(), is_fingerprint_active: true });
+                                       showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
+                                       fetchDashboardData();
+                                     } catch(e) {
+                                       showToast('Gagal mengaktifkan', 'error');
+                                     } finally {
+                                       setIsLoading(false);
+                                     }
+                                   }}
+                                   disabled={isLoading} 
+                                   className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200 cursor-pointer"
+                                 >
+                                   <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
+                                 </button>
                                </div>
                              </div>
-
-                             <button
-                               onClick={handleCancelEnrollment}
-                               className="text-xs text-red-500 hover:text-red-700 font-bold block mx-auto underline pt-1 cursor-pointer"
-                             >
-                               Batalkan Perekaman
-                             </button>
-                           </div>
-                       ) : (
-                           <div className="w-full max-w-md space-y-4">
-                             <p className="text-slate-600 text-sm font-medium">Pilih salah satu cara termudah untuk mengaktifkan sidik jari kamar Anda:</p>
-                             
-                             <div className="space-y-3">
-                               <button 
-                                 onClick={handleStartEnrollment} 
-                                 disabled={isLoading} 
-                                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center text-sm cursor-pointer"
-                               >
-                                 <Fingerprint size={18} className="mr-2" /> Mulai Rekam Jari di Pintu Sekarang
-                               </button>
-
-                               <button 
-                                 onClick={async () => {
-                                   try {
-                                     setIsLoading(true);
-                                     await axios.put('/api/users', {
-                                       userId: currentUser?.id,
-                                       fingerprint_id: currentUser?.id.toString(),
-                                       is_fingerprint_active: true
-                                     });
-                                     setCurrentUser({ ...currentUser, fingerprint_id: currentUser?.id.toString(), is_fingerprint_active: true });
-                                     showToast('Sidik jari Anda berhasil diaktifkan seketika!', 'success');
-                                     fetchDashboardData();
-                                   } catch(e) {
-                                     showToast('Gagal mengaktifkan', 'error');
-                                   } finally {
-                                     setIsLoading(false);
-                                   }
-                                 }}
-                                 disabled={isLoading} 
-                                 className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm flex items-center justify-center border border-slate-200 cursor-pointer"
-                               >
-                                 <CheckCircle size={16} className="mr-2 text-green-600" /> Langsung Aktifkan (Sudah Rekam di Alat)
-                               </button>
-                             </div>
-                           </div>
-                       )}
-                    </div>
-                )}
-             </div>
+                         )}
+                      </div>
+                  )}
+               </div>
+             )
           )}
 
           {view === 'resident_history' && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-               <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
-               {historyBills.length > 0 ? (
-                 <div className="overflow-x-auto rounded-lg border border-slate-200">
-                   <table className="w-full text-left text-sm whitespace-nowrap">
-                     <thead className="bg-slate-100">
-                       <tr>
-                         <th className="p-4">Bulan Tagihan</th>
-                         <th className="p-4">Ref TokoPay (Invoice)</th>
-                         <th className="p-4">Metode Bayar</th>
-                         <th className="p-4">Nominal</th>
-                         <th className="p-4">Status</th>
-                       </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-100">
-                       {historyBills.map(b => (
-                         <tr key={b.id} className="hover:bg-slate-50">
-                           <td className="p-4">{b.month}</td>
-                           <td className="p-4 font-mono text-xs font-bold text-slate-700">{b.ref_id}</td>
-                           <td className="p-4">{renderPaymentBadge(b.payment_method)}</td>
-                           <td className="p-4 font-bold text-slate-800">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
-                           <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
+             !currentUser?.room_id ? (
+               <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md mx-auto">
+                 <CreditCard className="mx-auto text-slate-300 mb-3" size={48} />
+                 <h4 className="font-black text-lg text-slate-800 mb-1">Belum Ada Transaksi</h4>
+                 <p className="text-xs text-slate-500 mb-4">
+                   Riwayat pembayaran akan tercatat otomatis setelah Anda memilih kamar dan melakukan pembayaran.
+                 </p>
+                 <button 
+                   onClick={() => setView('resident_dashboard')} 
+                   className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                 >
+                   Pilih Kamar di Beranda
+                 </button>
+               </div>
+             ) : (
+               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                 <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><FileText className="mr-2 text-blue-600"/> Riwayat Pembayaran Anda</h3>
+                 {historyBills.length > 0 ? (
+                   <div className="overflow-x-auto rounded-lg border border-slate-200">
+                     <table className="w-full text-left text-sm whitespace-nowrap">
+                       <thead className="bg-slate-100">
+                         <tr>
+                           <th className="p-4">Bulan Tagihan</th>
+                           <th className="p-4">Ref TokoPay (Invoice)</th>
+                           <th className="p-4">Metode Bayar</th>
+                           <th className="p-4">Nominal</th>
+                           <th className="p-4">Status</th>
                          </tr>
-                       ))}
-                     </tbody>
-                   </table>
-                 </div>
-               ) : (
-                 <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                   Belum ada riwayat pembayaran yang tercatat.
-                 </div>
-               )}
-             </div>
+                       </thead>
+                       <tbody className="divide-y divide-slate-100">
+                         {historyBills.map(b => (
+                           <tr key={b.id} className="hover:bg-slate-50">
+                             <td className="p-4">{b.month}</td>
+                             <td className="p-4 font-mono text-xs font-bold text-slate-700">{b.ref_id}</td>
+                             <td className="p-4">{renderPaymentBadge(b.payment_method)}</td>
+                             <td className="p-4 font-bold text-slate-800">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
+                             <td className="p-4"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-xs shadow-sm">LUNAS</span></td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 ) : (
+                   <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                     Belum ada riwayat pembayaran yang tercatat.
+                   </div>
+                 )}
+               </div>
+             )
           )}
 
           {/* VIEW: PROFIL PENGHUNI */}
