@@ -16,7 +16,7 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
     this.state = { hasError: false, error: '' };
   }
   static getDerivedStateFromError(error: any) {
-    return { hasError: true, error: error?.message || 'Terjadi kesalahan sistem' };
+    return { hasError: true, error: error?.message || 'Terjadi gangguan sistem' };
   }
   componentDidCatch(error: any, info: any) {
     console.error("SmartKos Crash Prevented:", error, info);
@@ -127,7 +127,7 @@ const renderPaymentBadge = (methodRaw: string, onEditClick?: () => void) => {
         type="button" 
         onClick={onEditClick}
         className="group inline-flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer text-left"
-        title="Klik untuk ubah channel pembayaran"
+        title="Klik untuk koreksi channel pembayaran"
       >
         {badgeContent}
         <Edit size={12} className="text-slate-400 group-hover:text-blue-600 transition" />
@@ -1184,7 +1184,7 @@ function AppContent() {
 
   const renderAdmin = () => (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      {/* 1. MOBILE TOPBAR ADMIN (HANYA MUNCUL DI HP) */}
+      {/* 1. TOPBAR MOBILE ADMIN */}
       <div className="md:hidden bg-slate-900 text-white px-4 py-3 flex justify-between items-center sticky top-0 z-30 shadow-md print:hidden">
         <div className="flex items-center space-x-2.5">
           <div className="p-1.5 bg-blue-600 rounded-lg text-white">
@@ -1211,7 +1211,7 @@ function AppContent() {
         </div>
       </div>
 
-      {/* 2. MOBILE DRAWER OVERLAY (MENU SLIDE-OVER HP) */}
+      {/* 2. DRAWER MENU MOBILE */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-40 md:hidden flex print:hidden">
           <div 
@@ -1262,7 +1262,7 @@ function AppContent() {
         </div>
       )}
 
-      {/* 3. SIDEBAR DESKTOP (TETAP SEPERTI BIASA DI KOMPUTER / LAPTOP) */}
+      {/* 3. SIDEBAR DESKTOP */}
       <div className="w-64 bg-slate-900 text-white flex-col hidden md:flex print:hidden flex-shrink-0">
         <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
           <Fingerprint className="text-blue-400" size={28} />
@@ -1289,8 +1289,8 @@ function AppContent() {
         </div>
       </div>
 
-      {/* 4. MAIN CONTENT AREA (RESPONSIF MOBILE & DESKTOP) */}
-      <div className="flex-1 p-3.5 sm:p-5 md:p-8 overflow-y-auto print:p-0 print:bg-white pb-16 md:pb-8">
+      {/* 4. KONTEN UTAMA */}
+      <div className="flex-1 p-3.5 sm:p-5 md:p-8 overflow-y-auto print:p-0 print:bg-white print:overflow-visible pb-16 md:pb-8">
         {/* Topbar Desktop */}
         <div className="hidden md:flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
           <div>
@@ -1305,7 +1305,6 @@ function AppContent() {
         {/* VIEW 1: DASHBOARD UTAMA */}
         {view === 'admin_dashboard' && (
           <div className="space-y-4 md:space-y-6">
-            {/* 4 Kartu Metrik Ringkas: Grid 2x2 di HP, 4 kolom di Laptop */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               <div className="bg-[#1e293b] text-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between relative overflow-hidden">
                 <div className="flex justify-between items-start mb-2 sm:mb-3">
@@ -1553,7 +1552,7 @@ function AppContent() {
           </div>
         )}
 
-        {/* VIEW: PEMBAYARAN (MOBILE CARD VIEW + DESKTOP TABLE VIEW) */}
+        {/* VIEW: PEMBAYARAN */}
         {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
           <div className="space-y-4 md:space-y-6">
             <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
@@ -1594,10 +1593,10 @@ function AppContent() {
               </div>
             </div>
 
-            {/* TAB 1: TAGIHAN BERJALAN (PENDING) */}
+            {/* TAB PENDING */}
             {paymentTab === 'pending' && (
               <div className="space-y-3">
-                {/* A. TAMPILAN KARTU UNTUK HP (MOBILE ONLY: md:hidden) */}
+                {/* Mobile Cards */}
                 <div className="grid grid-cols-1 gap-3 md:hidden">
                   {pendingBillsList.map(b => {
                     const user = safeUsers.find(u => u.id === b.user_id);
@@ -1629,7 +1628,6 @@ function AppContent() {
                           </div>
                         </div>
 
-                        {/* Tombol Aksi Mobile Ramah Sentuhan */}
                         <div className="grid grid-cols-3 gap-2 pt-1">
                           <button 
                             onClick={() => handleSetLunasManual(b.id, b.user_id)} 
@@ -1664,7 +1662,7 @@ function AppContent() {
                   )}
                 </div>
 
-                {/* B. TAMPILAN TABEL RESMI DESKTOP (LAPTOP ONLY: hidden md:block) */}
+                {/* Desktop Table */}
                 <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs whitespace-nowrap">
@@ -1747,10 +1745,10 @@ function AppContent() {
               </div>
             )}
 
-            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
+            {/* TAB HISTORY */}
             {paymentTab === 'history' && (
               <div className="space-y-3">
-                {/* A. TAMPILAN KARTU RIWAYAT DI HP (md:hidden) */}
+                {/* Mobile Cards */}
                 <div className="grid grid-cols-1 gap-3 md:hidden">
                   {historyBillsList.map(b => {
                     const user = safeUsers.find(u => u.id === b.user_id);
@@ -1793,7 +1791,7 @@ function AppContent() {
                   )}
                 </div>
 
-                {/* B. TABEL RIWAYAT DI DESKTOP (hidden md:block) */}
+                {/* Desktop Table */}
                 <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs whitespace-nowrap">
@@ -1909,7 +1907,7 @@ function AppContent() {
           </div>
         )}
 
-        {/* VIEW: KELOLA USER (PANEL ADMIN MOBILE-FRIENDLY & DESKTOP) */}
+        {/* VIEW: KELOLA USER */}
         {view === 'admin_users' && (() => {
           const nonAdminUsers = safeUsers.filter(u => !u.role || u.role === 'resident' || u.role !== 'admin');
 
@@ -1960,7 +1958,7 @@ function AppContent() {
                 </button>
               </div>
 
-              {/* 4 Mini Kartu Ringkasan (2x2 di HP) */}
+              {/* 4 Mini Kartu Ringkasan */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-2.5">
                   <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
@@ -2003,7 +2001,7 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* Bilah Pencarian & Sub-Filter */}
+              {/* Search & Tab Filter */}
               <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5">
                 <div className="relative flex-1">
                   <Search size={15} className="absolute left-3.5 top-3 text-slate-400" />
@@ -2046,7 +2044,7 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* A. TAMPILAN KARTU AKUN PENGGUNA DI HP (md:hidden) */}
+              {/* Mobile Card User */}
               <div className="grid grid-cols-1 gap-3 md:hidden">
                 {searchedUsers.map((u) => {
                   const room = safeRooms.find(r => r.id === u.room_id || String(r.number).trim() === String(u.room_id).trim());
@@ -2110,7 +2108,6 @@ function AppContent() {
                         </div>
                       </div>
 
-                      {/* Tombol Aksi Mobile */}
                       <div className="grid grid-cols-3 gap-2 pt-1">
                         <button
                           type="button"
@@ -2150,7 +2147,7 @@ function AppContent() {
                 )}
               </div>
 
-              {/* B. TAMPILAN TABEL PENGGUNA DI DESKTOP (hidden md:block) */}
+              {/* Desktop Table User */}
               <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs whitespace-nowrap">
@@ -2295,9 +2292,27 @@ function AppContent() {
           );
         })()}
 
-        {/* VIEW: LAPORAN KEUANGAN */}
+        {/* VIEW: LAPORAN KEUANGAN LENGKAP & EKSPOR CETAK/PDF */}
         {view === 'admin_reports' && (
-          <div className="space-y-4 md:space-y-6">
+          <div className="space-y-4 md:space-y-6 printable-report">
+            {/* KOP DOKUMEN CETAK RESMI (HANYA MUNCUL DI PDF/PRINT) */}
+            <div className="hidden print:block mb-6 border-b-2 border-slate-800 pb-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">SMARTKOS MANAGEMENT</h1>
+                  <p className="text-xs text-slate-600 font-bold">Laporan Rekapitulasi Arus Kas & Keuangan Hunian Kos</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Periode: <strong>{formatDateSafe(appliedStartDate)}</strong> s/d <strong>{formatDateSafe(appliedEndDate)}</strong>
+                  </p>
+                </div>
+                <div className="text-right text-xs text-slate-600">
+                  <p>Tanggal Cetak: <strong>{new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></p>
+                  <p className="font-mono text-[10px] mt-1 text-slate-400">Doc Ref: SK-REP-{new Date().getFullYear()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Header di Layar */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 print:hidden">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-800">Laporan Keuangan</h2>
@@ -2305,6 +2320,7 @@ function AppContent() {
               </div>
             </div>
 
+            {/* Filter Rentang Tanggal & Tombol Aksi */}
             <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 print:hidden">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
@@ -2349,7 +2365,8 @@ function AppContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 print:hidden">
+            {/* 4 KARTU METRIK RINGKASAN (TETAP DICETAK PADA PDF) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 mb-2">
                   <div className="w-6 h-6 rounded-lg bg-sky-50 flex items-center justify-center text-sky-500">
@@ -2409,15 +2426,78 @@ function AppContent() {
               </div>
             </div>
 
-            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
+            {/* GRAFIK TREN 6 BULAN TERAKHIR (LENGKAP DI LAYAR) */}
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
-              <h4 className="font-black text-slate-800 text-sm sm:text-base mb-3 flex items-center">
-                <FileSpreadsheet className="mr-2 text-emerald-600" size={18} /> Buku Kas Mutasi Keuangan
+              <div className="mb-4">
+                <h3 className="font-bold text-sm sm:text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Pemasukan, pengeluaran, dan keuntungan bersih per bulan</p>
+              </div>
+
+              {/* Batang Diagram */}
+              <div className="h-60 flex items-end justify-between gap-2 sm:gap-6 pt-6 pb-2 border-b border-slate-100">
+                {trendData.map((item, idx) => {
+                  const incomeHeight = Math.max(6, Math.min(100, Math.round((item.income / maxTrendVal) * 100)));
+                  const expenseHeight = Math.max(6, Math.min(100, Math.round((item.expense / maxTrendVal) * 100)));
+                  const profitHeight = Math.max(6, Math.min(100, Math.round((Math.max(0, item.profit) / maxTrendVal) * 100)));
+
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
+                      <div className="w-full flex items-end justify-center gap-1 sm:gap-2 h-full">
+                        <div 
+                          className="w-2.5 sm:w-5 bg-sky-400 rounded-t-md transition-all hover:bg-sky-500 relative" 
+                          style={{ height: `${incomeHeight}%` }}
+                          title={`Pemasukan: Rp ${item.income.toLocaleString('id-ID')}`}
+                        ></div>
+                        <div 
+                          className="w-2.5 sm:w-5 bg-rose-400 rounded-t-md transition-all hover:bg-rose-500 relative" 
+                          style={{ height: `${expenseHeight}%` }}
+                          title={`Pengeluaran: Rp ${item.expense.toLocaleString('id-ID')}`}
+                        ></div>
+                        <div 
+                          className="w-2.5 sm:w-5 bg-[#2c3e50] rounded-t-md transition-all hover:bg-slate-900 relative" 
+                          style={{ height: `${profitHeight}%` }}
+                          title={`Keuntungan: Rp ${item.profit.toLocaleString('id-ID')}`}
+                        ></div>
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-2 whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend Grafik */}
+              <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mt-3 pt-1 text-xs font-semibold text-slate-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-[#2c3e50]"></span>
+                  <span>Keuntungan</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-sky-400"></span>
+                  <span>Pemasukan</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-rose-400"></span>
+                  <span>Pengeluaran</span>
+                </div>
+              </div>
+            </div>
+
+            {/* TABEL BUKU KAS MUTASI KEUANGAN (TETAP TAMPIL DI LAYAR & TERCETAK RESMI DI PDF) */}
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h4 className="font-black text-slate-800 text-sm sm:text-base mb-3 flex items-center justify-between">
+                <span className="flex items-center">
+                  <FileSpreadsheet className="mr-2 text-emerald-600 print:hidden" size={18} /> Buku Kas Mutasi Keuangan
+                </span>
+                <span className="text-xs font-normal text-slate-400 print:hidden">
+                  {combinedReportTransactions.length} transaksi
+                </span>
               </h4>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 print:border-slate-800">
+                <table className="w-full text-left text-xs whitespace-nowrap print:border-collapse">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 print:bg-slate-200 print:border-slate-800">
                     <tr>
                       <th className="p-3 text-center w-10">No</th>
                       <th className="p-3">Tanggal</th>
@@ -2429,11 +2509,11 @@ function AppContent() {
                       <th className="p-3 text-right">Pengeluaran</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 print:divide-slate-300">
                     {combinedReportTransactions.map((t, idx) => (
                       <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                        <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                        <td className="p-3 text-slate-600">{formatDateSafe(t.date)}</td>
+                        <td className="p-3 text-center text-slate-400 font-mono print:text-black">{idx + 1}</td>
+                        <td className="p-3 text-slate-600 print:text-black">{formatDateSafe(t.date)}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             t.type === 'Pemasukan' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -2441,19 +2521,122 @@ function AppContent() {
                             {t.type}
                           </span>
                         </td>
-                        <td className="p-3 font-semibold text-slate-700">{t.category}</td>
-                        <td className="p-3 text-slate-600">{t.description}</td>
+                        <td className="p-3 font-semibold text-slate-700 print:text-black">{t.category}</td>
+                        <td className="p-3 text-slate-600 print:text-black">{t.description}</td>
                         <td className="p-3 text-center">{renderPaymentBadge(t.paymentMethod)}</td>
-                        <td className="p-3 text-right font-black text-sky-600 font-mono">
+                        <td className="p-3 text-right font-black text-sky-600 font-mono print:text-black">
                           {t.income > 0 ? `Rp ${t.income.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="p-3 text-right font-black text-rose-600 font-mono">
+                        <td className="p-3 text-right font-black text-rose-600 font-mono print:text-black">
                           {t.expense > 0 ? `Rp ${t.expense.toLocaleString('id-ID')}` : '-'}
                         </td>
                       </tr>
                     ))}
+                    {combinedReportTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-400">
+                          Tidak ada transaksi yang tercatat pada rentang tanggal ini.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* TABEL KOMPARASI: PEMASUKAN SEWA VS PENGELUARAN (LENGKAP DI LAYAR) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 print:hidden">
+              {/* Kolom Kiri: Pemasukan Sewa */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
+                  <span>Pemasukan Sewa (Lunas)</span>
+                  <span className="text-xs text-slate-400 font-normal">{filteredReportBills.length} data</span>
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                      <tr>
+                        <th className="p-2.5">Tanggal</th>
+                        <th className="p-2.5">Penghuni</th>
+                        <th className="p-2.5">Kamar</th>
+                        <th className="p-2.5 text-right">Nominal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredReportBills.map(b => {
+                        const user = safeUsers.find(u => u.id === b.user_id);
+                        const room = safeRooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/60">
+                            <td className="p-2.5 text-slate-500">{formatDateSafe(b.created_at || b.due_date)}</td>
+                            <td className="p-2.5 font-bold text-slate-800">{user?.name || `User #${b.user_id}`}</td>
+                            <td className="p-2.5 text-slate-600">{room ? `Kmr ${room.number}` : '-'}</td>
+                            <td className="p-2.5 font-black text-sky-600 text-right">Rp {Number(b.nominal).toLocaleString('id-ID')}</td>
+                          </tr>
+                        );
+                      })}
+                      {filteredReportBills.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pemasukan pada rentang tanggal ini.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Kolom Kanan: Pengeluaran */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
+                  <span>Rincian Pengeluaran</span>
+                  <span className="text-xs text-slate-400 font-normal">{filteredReportExpenses.length} data</span>
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                      <tr>
+                        <th className="p-2.5">Tanggal</th>
+                        <th className="p-2.5">Keperluan</th>
+                        <th className="p-2.5">Kategori</th>
+                        <th className="p-2.5 text-right">Nominal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredReportExpenses.map(e => (
+                        <tr key={e.id} className="hover:bg-slate-50/60">
+                          <td className="p-2.5 text-slate-500">{formatDateSafe(e.expense_date || e.created_at)}</td>
+                          <td className="p-2.5 font-bold text-slate-800">{e.title}</td>
+                          <td className="p-2.5 text-slate-600"><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 font-medium">{e.category}</span></td>
+                          <td className="p-2.5 font-black text-rose-600 text-right">Rp {Number(e.nominal).toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))}
+                      {filteredReportExpenses.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">Tidak ada pengeluaran pada rentang tanggal ini.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* KOLOM TANDA TANGAN RESMI (HANYA MUNCUL DI PDF/PRINT) */}
+            <div className="hidden print:block pt-10">
+              <div className="flex justify-between items-start text-xs text-slate-800">
+                <div className="text-center w-48">
+                  <p>Mengetahui,</p>
+                  <p className="font-bold mt-1">Pemilik Kos</p>
+                  <div className="h-16"></div>
+                  <p className="border-b border-slate-800 font-bold">( ........................................ )</p>
+                </div>
+
+                <div className="text-center w-48">
+                  <p>Petugas Administrasi,</p>
+                  <p className="font-bold mt-1">Pengelola SmartKos</p>
+                  <div className="h-16"></div>
+                  <p className="border-b border-slate-800 font-bold">( {currentUser?.name || 'Administrator'} )</p>
+                </div>
               </div>
             </div>
           </div>
@@ -2766,7 +2949,6 @@ function AppContent() {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col pb-12 sm:pb-6">
-        {/* Top Navbar Konsisten untuk Semua Penghuni */}
         <nav className="bg-white shadow-sm border-b px-3.5 sm:px-6 py-3 sm:py-4 flex justify-between items-center sticky top-0 z-20">
           <div className="font-black text-lg sm:text-xl flex items-center">
             <Fingerprint className="mr-2 text-blue-600" size={24} /> SmartKos
@@ -2784,7 +2966,7 @@ function AppContent() {
           </div>
         </nav>
 
-        {/* Tab Navigasi - Rata dan Fleksibel di Layar HP */}
+        {/* Tab Navigasi Penghuni */}
         <div className="bg-white border-b px-2 sm:px-6 flex space-x-1 sm:space-x-6 justify-around sm:justify-center text-xs sm:text-sm font-bold shadow-xs overflow-x-auto">
            <button onClick={() => setView('resident_dashboard')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
            <button onClick={() => setView('resident_fingerprint')} className={`py-3.5 px-2.5 sm:px-4 border-b-2 sm:border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
@@ -2810,7 +2992,7 @@ function AppContent() {
                    </span>
                  </div>
 
-                 {/* PILIHAN CEPAT VIA DROPDOWN (SANGAT MUDAH DI HP) */}
+                 {/* PILIHAN CEPAT DROPDOWN */}
                  <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
                    <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                      Pilihan Cepat (Dropdown)
@@ -2845,7 +3027,7 @@ function AppContent() {
                    </div>
                  </div>
 
-                 {/* DENAH GRID MINI KAMAR (KOMPAK DI LAYAR HP) */}
+                 {/* DENAH GRID MINI KAMAR */}
                  <div className="space-y-2.5">
                    <div className="flex justify-between items-center gap-2">
                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -3083,7 +3265,7 @@ function AppContent() {
           )}
         </div>
 
-        {/* MODAL SCAN QRIS (PAS DI LAYAR HP) */}
+        {/* MODAL SCAN QRIS */}
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-white p-5 rounded-3xl shadow-2xl w-full max-w-xs text-center border">
@@ -3124,17 +3306,33 @@ function AppContent() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 1cm;
+            margin: 10mm;
           }
-          body {
+          body, html {
             background-color: white !important;
             color: black !important;
+            height: auto !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
           }
           table {
+            width: 100% !important;
             border-collapse: collapse !important;
           }
           th, td {
-            border: 1px solid #1e293b !important;
+            border: 1px solid #475569 !important;
+            padding: 6px 8px !important;
+          }
+          th {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
           }
         }
       `}</style>
