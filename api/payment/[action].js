@@ -106,7 +106,7 @@ export default async function handler(req, res) {
                 });
 
                 const receiptMsg = 
-`🎉 *PEMBAYARAN SEWA BERHASIL - SMARTKOS*
+`🎉 *PEMBAYARAN SEWA BERHASIL - ADIBJAYAKOS*
 
 Halo Kak *${tenant.name}*,
 Terima kasih! Pembayaran sewa kamar Anda telah kami terima dan diverifikasi secara otomatis oleh sistem.
@@ -122,7 +122,7 @@ Terima kasih! Pembayaran sewa kamar Anda telah kami terima dan diverifikasi seca
 ✅ Akses pintu kamar & sensor sidik jari Anda telah *AKTIF* hingga tanggal 25 bulan berikutnya.
 
 Salam hangat,
-*Manajemen SmartKos*`;
+*ADIB JAYAKOS*`;
 
                 await fetch('https://api.fonnte.com/send', {
                   method: 'POST',

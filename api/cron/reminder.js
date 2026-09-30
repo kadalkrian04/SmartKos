@@ -56,13 +56,13 @@ export default async function handler(req, res) {
     }
 
     // Menentukan sub-header pesan berdasarkan jarak hari
-    let urgencyHeader = '⏰ *PENGINGAT JATUH TEMPO SEWA - SMARTKOS*';
+    let urgencyHeader = '⏰ *PENGINGAT JATUH TEMPO SEWA - ADIBJAYAKOS*';
     if (currentDay === 22) {
-      urgencyHeader = '⏰ *PENGINGAT AWAL (H-3 JATUH TEMPO) - SMARTKOS*';
+      urgencyHeader = '⏰ *PENGINGAT AWAL (H-3 JATUH TEMPO) - ADIBJAYAKOS*';
     } else if (currentDay === 24) {
-      urgencyHeader = '⚠️ *PENGINGAT PENTING (BESOK JATUH TEMPO) - SMARTKOS*';
+      urgencyHeader = '⚠️ *PENGINGAT PENTING (BESOK JATUH TEMPO) - ADIBJAYAKOS*';
     } else if (currentDay === 25) {
-      urgencyHeader = '🚨 *PENGINGAT HARI TERAKHIR (JATUH TEMPO HARI INI) - SMARTKOS*';
+      urgencyHeader = '🚨 *PENGINGAT HARI TERAKHIR (JATUH TEMPO HARI INI) - ADIBJAYAKOS*';
     }
 
     const pendingBillsRes = await sql`
@@ -119,7 +119,7 @@ Agar sistem smart lock sidik jari di pintu kamar tetap aktif tanpa kendala pengu
 _Pesan ini terkirim otomatis oleh sistem. Abaikan jika Kakak sudah menyelesaikan pembayaran. Terima kasih atas kerja samanya!_
 
 Salam hangat,
-*Manajemen SmartKos*`;
+*ADIB JAYAKOS*`;
 
       try {
         const sendResult = await sendFonnteMessage(fonnteToken, bill.phone, reminderMessage);
