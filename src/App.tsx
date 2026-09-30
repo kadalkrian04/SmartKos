@@ -17,7 +17,10 @@ export default function App() {
   });
   
   const [view, setView] = useState(() => {
-    return localStorage.getItem('smartkos_view') || 'login';
+    const saved = localStorage.getItem('smartkos_view');
+    // Sinkronisasi jika sebelumnya tersimpan view terpisah lama
+    if (saved === 'admin_bills' || saved === 'admin_history') return 'admin_payments';
+    return saved || 'login';
   }); 
   
   const [lastRegUsername, setLastRegUsername] = useState('');
@@ -41,6 +44,8 @@ export default function App() {
   const [enrollSuccessModal, setEnrollSuccessModal] = useState<any>(null);
   const [floorFilter, setFloorFilter] = useState<'all' | 'lt2' | 'lt3'>('all');
   const [settingsTab, setSettingsTab] = useState<'tokopay' | 'devices'>('tokopay');
+  // State sub-tab menu Pembayaran: 'pending' (Tagihan Aktif) atau 'history' (Riwayat Lunas)
+  const [paymentTab, setPaymentTab] = useState<'pending' | 'history'>('pending');
 
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
@@ -203,12 +208,12 @@ export default function App() {
   };
 
   const handleDeleteRoom = async (id: number) => {
-    if(!window.confirm('Yakin hapus kamar ini? Pastikan tidak ada penghuni!')) return;
     try {
       await axios.delete(`/api/rooms?id=${id}`);
-      showToast('Kamar dihapus', 'success'); fetchDashboardData();
+      showToast('Kamar berhasil dihapus', 'success'); 
+      fetchDashboardData();
     } catch (error: any) { 
-      showToast(error.response?.data?.message || 'Gagal menghapus kamar', 'error'); 
+      showToast(error.response?.data?.message || 'Gagal menghapus kamar. Pastikan tidak ada penghuni aktif.', 'error'); 
     }
   };
 
@@ -221,20 +226,18 @@ export default function App() {
   };
 
   const handleDeleteHistory = async (id: number) => {
-    if(!window.confirm('Yakin ingin menghapus riwayat pembayaran ini?')) return;
     try {
       await axios.delete(`/api/bills?id=${id}`);
-      showToast('Riwayat berhasil dihapus', 'success'); 
+      showToast('Riwayat transaksi berhasil dihapus', 'success'); 
       fetchDashboardData();
     } catch (error) { showToast('Gagal menghapus riwayat', 'error'); }
   };
 
   const handleClearLogs = async () => {
-    if(!window.confirm('Yakin ingin menghapus SEMUA catatan log pintu?')) return;
     setIsLoading(true);
     try {
       await axios.delete('/api/logs');
-      showToast('Semua log berhasil dibersihkan', 'success');
+      showToast('Semua catatan log pintu berhasil dibersihkan', 'success');
       fetchDashboardData();
     } catch (error) { showToast('Gagal membersihkan log', 'error'); }
     finally { setIsLoading(false); }
@@ -272,13 +275,12 @@ export default function App() {
   };
 
   const handleDeleteExpense = async (id: number) => {
-    if (!window.confirm('Hapus catatan pengeluaran ini?')) return;
     try {
       await axios.delete(`/api/expenses?id=${id}`);
-      showToast('Pengeluaran dihapus', 'success');
+      showToast('Data pengeluaran berhasil dihapus', 'success');
       fetchDashboardData();
     } catch (err) {
-      showToast('Gagal menghapus', 'error');
+      showToast('Gagal menghapus data pengeluaran', 'error');
     }
   };
 
@@ -326,7 +328,6 @@ export default function App() {
   };
 
   const handleSetLunasManual = async (billId: number, userId: number) => {
-    if(!window.confirm('Yakin ingin menandai tagihan ini LUNAS secara manual?')) return;
     setIsLoading(true);
     try {
       await axios.put(`/api/bills?id=${billId}`, { action: 'set_lunas', user_id: userId });
@@ -674,6 +675,10 @@ export default function App() {
   const totalTenantsWithRooms = users.filter(u => u.role === 'resident' && u.room_id).length;
   const totalLunasCount = Math.max(0, totalTenantsWithRooms - totalBelumLunas);
 
+  // Filter daftar tagihan untuk menu terpadu Pembayaran
+  const pendingBillsList = bills.filter(b => b.status === 'pending');
+  const historyBillsList = bills.filter(b => b.status === 'lunas');
+
   const renderAuth = () => (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border">
@@ -715,14 +720,13 @@ export default function App() {
           {[
             { id: 'admin_dashboard', icon: Activity, label: 'Dashboard Utama' },
             { id: 'admin_users', icon: Users, label: 'Data Penghuni' },
-            { id: 'admin_bills', icon: CreditCard, label: 'Tagihan & Keuangan' },
+            { id: 'admin_payments', icon: CreditCard, label: 'Pembayaran' },
             { id: 'admin_expenses', icon: Receipt, label: 'Buku Pengeluaran' },
             { id: 'admin_reports', icon: BarChart3, label: 'Laporan Keuangan' },
-            { id: 'admin_history', icon: History, label: 'Riwayat Transaksi' },
             { id: 'admin_logs', icon: FileText, label: 'Log Pintu' },
             { id: 'admin_settings', icon: Settings, label: 'Pengaturan' }
           ].map(item => (
-            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${view === item.id ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${(view === item.id || (item.id === 'admin_payments' && (view === 'admin_bills' || view === 'admin_history'))) ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
               <item.icon size={18} /> <span>{item.label}</span>
             </button>
           ))}
@@ -1006,11 +1010,341 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW: LAPORAN KEUANGAN DENGAN EXPORT EXCEL & CETAK PDF TABEL RESMI */}
+        {/* VIEW: PEMBAYARAN (GABUNGAN MENU TAGIHAN & RIWAYAT TRANSAKSI) */}
+        {/* ========================================================================= */}
+        {(view === 'admin_payments' || view === 'admin_bills' || view === 'admin_history') && (
+          <div className="space-y-6">
+            {/* Header Menu Pembayaran */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 flex items-center">
+                  <CreditCard className="mr-2.5 text-blue-600" size={24} /> Manajemen Pembayaran & Tagihan
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pantau tagihan sewa berjalan, konfirmasi pelunasan manual, dan cek arsip riwayat transaksi
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                {/* Switcher Tab Tagihan Aktif vs Riwayat Lunas */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button 
+                    onClick={() => setPaymentTab('pending')}
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${paymentTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <Clock size={14} className="mr-1.5 text-amber-500" />
+                    Tagihan Berjalan ({pendingBillsList.length})
+                  </button>
+                  <button 
+                    onClick={() => setPaymentTab('history')}
+                    className={`px-4 py-2 rounded-lg flex items-center transition ${paymentTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <CheckCircle size={14} className="mr-1.5 text-emerald-500" />
+                    Riwayat Lunas ({historyBillsList.length})
+                  </button>
+                </div>
+
+                <button 
+                  onClick={handleGenerateBills} 
+                  disabled={isLoading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center shadow-md shadow-emerald-600/20 transition whitespace-nowrap"
+                  title="Generate tagihan bulanan untuk seluruh penghuni aktif"
+                >
+                  <Plus size={15} className="mr-1.5" /> Buat Tagihan Baru
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: TAGIHAN BERJALAN / BELUM LUNAS */}
+            {paymentTab === 'pending' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <h4 className="font-bold text-sm text-slate-800">Daftar Tagihan Sewa (Pending / Belum Lunas)</h4>
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">Total: {pendingBillsList.length} tagihan</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Penghuni & Kamar</th>
+                        <th className="p-4">Ref TokoPay</th>
+                        <th className="p-4">Nominal</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Jatuh Tempo</th>
+                        <th className="p-4 text-center">Aksi Pengelola</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pendingBillsList.map(b => {
+                        const user = users.find(u => u.id === b.user_id);
+                        const room = rooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-4">
+                              <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
+                              <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number} (${room.name})` : 'Belum pilih kamar'}</span>
+                            </td>
+                            <td className="p-4 font-mono text-slate-600">{b.ref_id}</td>
+                            <td className="p-4 font-black text-rose-600 font-mono text-sm">
+                              Rp {Number(b.nominal).toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Belum Lunas
+                              </span>
+                            </td>
+                            <td className="p-4 text-slate-600">
+                              {new Date(b.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="p-4 text-center">
+                              <div className="inline-flex items-center gap-2">
+                                <button 
+                                  onClick={() => handleSetLunasManual(b.id, b.user_id)} 
+                                  className="text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold transition shadow-xs flex items-center"
+                                  title="Tandai tagihan lunas secara manual (misal uang tunai / transfer langsung)"
+                                >
+                                  <CheckCircle size={13} className="mr-1.5 text-emerald-600" /> Set Lunas (Manual)
+                                </button>
+                                <button 
+                                  onClick={() => setBillModal(b)} 
+                                  className="text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-300 text-xs font-bold transition shadow-xs flex items-center"
+                                  title="Ubah nominal tagihan kamar ini"
+                                >
+                                  <Edit size={13} className="mr-1.5 text-blue-600" /> Edit Nominal
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {pendingBillsList.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-10 text-center text-slate-400">
+                            <CheckCircle size={40} className="mx-auto text-emerald-500 mb-2 opacity-80" />
+                            <p className="font-bold text-slate-700 text-sm">Semua Tagihan Sewa Lunas!</p>
+                            <p className="text-xs text-slate-400 mt-1">Tidak ada tagihan tertunda yang perlu ditagihkan kepada anak kos.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
+            {paymentTab === 'history' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <h4 className="font-bold text-sm text-slate-800">Arsip Riwayat Pembayaran (Status Lunas)</h4>
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">Total: {historyBillsList.length} transaksi</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Tanggal Pembayaran</th>
+                        <th className="p-4">Penghuni & Kamar</th>
+                        <th className="p-4">Ref ID Transaksi</th>
+                        <th className="p-4">Nominal Masuk</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {historyBillsList.map(b => {
+                        const user = users.find(u => u.id === b.user_id);
+                        const room = rooms.find(r => r.id === user?.room_id);
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-4 text-slate-600">
+                              {new Date(b.created_at || b.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="p-4">
+                              <span className="font-bold text-slate-800 text-sm block">{user?.name || `User #${b.user_id}`}</span>
+                              <span className="text-[11px] text-slate-400 font-medium">{room ? `Kamar ${room.number}` : '-'}</span>
+                            </td>
+                            <td className="p-4 font-mono text-slate-600">{b.ref_id}</td>
+                            <td className="p-4 font-black text-emerald-600 font-mono text-sm">
+                              Rp {Number(b.nominal).toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center">
+                                <CheckCircle size={12} className="mr-1.5 text-emerald-600" /> LUNAS
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <button 
+                                onClick={() => handleDeleteHistory(b.id)} 
+                                className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-bold transition shadow-xs inline-flex items-center"
+                                title="Hapus catatan riwayat transaksi ini"
+                              >
+                                <Trash2 size={13} className="mr-1.5" /> Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {historyBillsList.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-10 text-center text-slate-400">
+                            <History size={40} className="mx-auto text-slate-300 mb-2" />
+                            <p className="font-bold text-slate-700 text-sm">Belum Ada Riwayat Transaksi</p>
+                            <p className="text-xs text-slate-400 mt-1">Transaksi yang sudah lunas akan tercatat otomatis di sini.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW: BUKU PENGELUARAN */}
+        {/* ========================================================================= */}
+        {view === 'admin_expenses' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="font-black text-xl text-slate-800">Catatan Pengeluaran Kos</h3>
+                <p className="text-xs text-slate-500">Mencatat biaya listrik, air, internet, perbaikan, dan kebersihan</p>
+              </div>
+              <button 
+                onClick={() => setExpenseModal(true)} 
+                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm"
+              >
+                <Plus size={16} className="mr-2" /> Catat Pengeluaran Baru
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-4">Tanggal</th>
+                    <th className="p-4">Keperluan / Keterangan</th>
+                    <th className="p-4">Kategori</th>
+                    <th className="p-4">Nominal</th>
+                    <th className="p-4">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {expenses.map(exp => (
+                    <tr key={exp.id} className="hover:bg-slate-50">
+                      <td className="p-4 text-slate-500">{new Date(exp.expense_date || exp.created_at).toLocaleDateString('id-ID')}</td>
+                      <td className="p-4 font-bold text-slate-800">{exp.title}</td>
+                      <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
+                      <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
+                      <td className="p-4">
+                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition">
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {expenses.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran. Klik tombol di atas untuk menambah.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW: DATA PENGHUNI */}
+        {/* ========================================================================= */}
+        {view === 'admin_users' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
+            <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
+            <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-100 border-b">
+                  <tr>
+                    <th className="p-4">Nama</th>
+                    <th className="p-4">Username</th>
+                    <th className="p-4">Kamar</th>
+                    <th className="p-4">Status Sidik Jari</th>
+                    <th className="p-4">Status Tagihan</th>
+                    <th className="p-4">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{u.name}</td>
+                      <td className="p-4 text-slate-500">{u.username}</td>
+                      <td className="p-4 font-bold">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
+                      <td className="p-4">
+                        {u.fingerprint_id ? (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
+                            <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                            Belum Didaftarkan
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {!u.room_id ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
+                        ) : !u.is_fingerprint_active ? (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
+                        ) : (
+                           <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <button
+                          onClick={async () => {
+                            try {
+                              setIsLoading(true);
+                              await axios.put('/api/users', {
+                                userId: u.id,
+                                fingerprint_id: u.id.toString(),
+                                is_fingerprint_active: true
+                              });
+                              showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
+                              fetchDashboardData();
+                            } catch(e) {
+                              showToast('Gagal mengaktifkan', 'error');
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
+                        >
+                          <ShieldCheck size={14} className="mr-1.5" />
+                          {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW: LAPORAN KEUANGAN */}
         {/* ========================================================================= */}
         {view === 'admin_reports' && (
           <div className="space-y-6">
-            {/* Header Laporan Layar (Disembunyikan saat cetak) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
               <div>
                 <h2 className="text-2xl font-black text-slate-800">Laporan Keuangan</h2>
@@ -1018,7 +1352,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Filter Rentang Tanggal & Tombol Export Excel / Cetak (Disembunyikan saat cetak) */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 print:hidden">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -1047,7 +1380,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* DUA TOMBOL EKSPOR: EXCEL MURNI & CETAK DOKUMEN TABEL */}
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleExportExcel}
@@ -1066,7 +1398,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 4 Kartu Metrik Laporan (Hanya Tampil di Layar Web) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
@@ -1145,7 +1476,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Grafik Tren 6 Bulan (Hanya Tampil di Layar Web) */}
+            {/* Grafik Tren 6 Bulan */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="mb-6">
                 <h3 className="font-bold text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
@@ -1201,7 +1532,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* TABEL BUKU KAS GABUNGAN DI LAYAR (MODEL EXCEL LENGKAP) */}
+            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                 <div>
@@ -1281,12 +1612,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* ========================================================================= */}
-            {/* FORMAT CETAK DOKUMEN RESMI (HANYA MUNCUL SAAT KLIK CETAK / PDF) */}
-            {/* MENGGUNAKAN FORMAT TABEL EXCEL KOTAK DENGAN GARIS TEGAS TANPA WIDGET WEB */}
-            {/* ========================================================================= */}
+            {/* FORMAT CETAK DOKUMEN RESMI (HANYA SAAT CETAK / PDF) */}
             <div className="hidden print:block print-document-container p-2 text-black">
-              {/* Kop Surat Dokumen */}
               <div className="text-center border-b-2 border-black pb-4 mb-5">
                 <h1 className="text-2xl font-black uppercase tracking-wider">SMARTKOS MANAGEMENT SYSTEM</h1>
                 <h2 className="text-base font-bold uppercase text-slate-700 mt-1">Laporan Rekapitulasi Arus Kas & Keuangan</h2>
@@ -1297,7 +1624,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tabel Ringkasan Eksekutif */}
               <table className="w-full border-collapse border border-black mb-6 text-xs">
                 <thead>
                   <tr className="bg-slate-200 text-black">
@@ -1315,7 +1641,6 @@ export default function App() {
                 </tbody>
               </table>
 
-              {/* Tabel Lembar Kerja Excel Resmi */}
               <div className="mb-8">
                 <h3 className="text-xs font-bold uppercase tracking-wider mb-2">Rincian Mutasi Transaksi (Buku Kas Besar):</h3>
                 <table className="w-full border-collapse border border-black text-[11px]">
@@ -1371,7 +1696,6 @@ export default function App() {
                 </table>
               </div>
 
-              {/* Tanda Tangan Pengelola Dokumen */}
               <div className="flex justify-end pt-4">
                 <div className="text-center w-56 text-xs">
                   <p className="text-slate-700">Pengelola SmartKos,</p>
@@ -1384,187 +1708,9 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 2: BUKU PENGELUARAN */}
-        {view === 'admin_expenses' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-black text-xl text-slate-800">Catatan Pengeluaran Kos</h3>
-                <p className="text-xs text-slate-500">Mencatat biaya listrik, air, internet, perbaikan, dan kebersihan</p>
-              </div>
-              <button 
-                onClick={() => setExpenseModal(true)} 
-                className="bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center shadow-md hover:bg-rose-700 transition text-sm"
-              >
-                <Plus size={16} className="mr-2" /> Catat Pengeluaran Baru
-              </button>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 border-b">
-                  <tr>
-                    <th className="p-4">Tanggal</th>
-                    <th className="p-4">Keperluan / Keterangan</th>
-                    <th className="p-4">Kategori</th>
-                    <th className="p-4">Nominal</th>
-                    <th className="p-4">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {expenses.map(exp => (
-                    <tr key={exp.id} className="hover:bg-slate-50">
-                      <td className="p-4 text-slate-500">{new Date(exp.expense_date || exp.created_at).toLocaleDateString('id-ID')}</td>
-                      <td className="p-4 font-bold text-slate-800">{exp.title}</td>
-                      <td className="p-4"><span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{exp.category}</span></td>
-                      <td className="p-4 font-black text-rose-600">Rp {Number(exp.nominal).toLocaleString('id-ID')}</td>
-                      <td className="p-4">
-                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition">
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {expenses.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada catatan pengeluaran. Klik tombol di atas untuk menambah.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 3: DATA PENGHUNI */}
-        {view === 'admin_users' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
-            <h3 className="font-bold mb-6 text-lg">Data Penghuni Aktif</h3>
-            <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b">
-                  <tr>
-                    <th className="p-4">Nama</th>
-                    <th className="p-4">Username</th>
-                    <th className="p-4">Kamar</th>
-                    <th className="p-4">Status Sidik Jari</th>
-                    <th className="p-4">Status Tagihan</th>
-                    <th className="p-4">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{u.name}</td>
-                      <td className="p-4 text-slate-500">{u.username}</td>
-                      <td className="p-4 font-bold">{rooms.find(r => r.id === u.room_id)?.number || '-'}</td>
-                      <td className="p-4">
-                        {u.fingerprint_id ? (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center">
-                            <CheckCircle size={12} className="mr-1" /> Terdaftar & Aktif
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                            Belum Didaftarkan
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {!u.room_id ? (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">BELUM PILIH KAMAR</span>
-                        ) : !u.is_fingerprint_active ? (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">TERKUNCI (BELUM LUNAS)</span>
-                        ) : (
-                           <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">LUNAS</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <button
-                          onClick={async () => {
-                            try {
-                              setIsLoading(true);
-                              await axios.put('/api/users', {
-                                userId: u.id,
-                                fingerprint_id: u.id.toString(),
-                                is_fingerprint_active: true
-                              });
-                              showToast(`Sidik jari ${u.name} langsung diaktifkan!`, 'success');
-                              fetchDashboardData();
-                            } catch(e) {
-                              showToast('Gagal mengaktifkan', 'error');
-                            } finally {
-                              setIsLoading(false);
-                            }
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
-                        >
-                          <ShieldCheck size={14} className="mr-1.5" />
-                          {u.fingerprint_id ? 'Reset / Aktifkan Ulang' : 'Langsung Aktifkan'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* VIEW 4: TAGIHAN */}
-        {view === 'admin_bills' && (
-          <div className="space-y-4">
-            <button onClick={handleGenerateBills} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center mb-4"><Plus size={16} className="mr-2" /> Generate Tagihan Bulan Ini</button>
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b"><tr><th className="p-4">ID User</th><th className="p-4">Ref TokoPay</th><th className="p-4">Nominal</th><th className="p-4">Status</th><th className="p-4">Jatuh Tempo</th><th className="p-4">Aksi</th></tr></thead>
-                <tbody className="divide-y">
-                  {bills.map(b => (
-                    <tr key={b.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{users.find(u => u.id === b.user_id)?.name || `User #${b.user_id}`}</td><td className="p-4 font-mono text-xs">{b.ref_id}</td>
-                      <td className="p-4 font-bold text-red-600">Rp {b.nominal.toLocaleString()}</td>
-                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'lunas' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{b.status}</span></td>
-                      <td className="p-4">{new Date(b.due_date).toLocaleDateString()}</td>
-                      <td className="p-4 flex gap-2">
-                        {b.status === 'pending' && (
-                           <>
-                             <button onClick={() => handleSetLunasManual(b.id, b.user_id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded border border-green-200 text-xs font-bold">Set Lunas (Manual)</button>
-                             <button onClick={() => setBillModal(b)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-bold">Edit Nominal</button>
-                           </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 5: RIWAYAT TRANSAKSI */}
-        {view === 'admin_history' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
-            <div className="flex justify-between items-center mb-6">
-               <h3 className="font-bold text-lg flex items-center"><History className="mr-2 text-blue-600"/> Riwayat Pembayaran (Lunas)</h3>
-               <p className="text-sm text-slate-500">Pencatatan transaksi lunas</p>
-            </div>
-            <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-100 border-b"><tr><th className="p-4">Tanggal Tagihan</th><th className="p-4">Penghuni</th><th className="p-4">Ref ID</th><th className="p-4">Nominal</th><th className="p-4">Aksi</th></tr></thead>
-                <tbody className="divide-y">
-                  {bills.filter(b => b.status === 'lunas').map(b => (
-                    <tr key={b.id} className="hover:bg-slate-50">
-                      <td className="p-4">{new Date(b.created_at || b.due_date).toLocaleDateString()}</td>
-                      <td className="p-4 font-bold">{users.find(u => u.id === b.user_id)?.name || `User #${b.user_id}`}</td>
-                      <td className="p-4 font-mono text-xs text-slate-500">{b.ref_id}</td>
-                      <td className="p-4 font-bold text-green-600">Rp {b.nominal.toLocaleString()}</td>
-                      <td className="p-4">
-                        <button onClick={() => handleDeleteHistory(b.id)} className="text-red-600 hover:bg-red-50 p-2 rounded flex items-center text-xs font-bold"><Trash2 size={14} className="mr-1"/> Hapus</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* VIEW 6: LOG PINTU */}
+        {/* ========================================================================= */}
+        {/* VIEW: LOG PINTU */}
+        {/* ========================================================================= */}
         {view === 'admin_logs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border overflow-x-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -1586,7 +1732,9 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 7: PENGATURAN */}
+        {/* ========================================================================= */}
+        {/* VIEW: PENGATURAN */}
+        {/* ========================================================================= */}
         {view === 'admin_settings' && (
           <div className="space-y-6 max-w-4xl">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -1921,6 +2069,7 @@ export default function App() {
              </div>
           )}
 
+          {}
           {view === 'resident_fingerprint' && (
              <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center max-w-2xl mx-auto">
                 <h3 className="text-xl font-black mb-6 flex items-center justify-center border-b pb-4"><Fingerprint className="mr-2 text-blue-600" size={28}/> Akses Sidik Jari Kamar</h3>
@@ -2066,6 +2215,7 @@ export default function App() {
           )}
         </div>
 
+        { }
         {paymentModal && (
           <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
