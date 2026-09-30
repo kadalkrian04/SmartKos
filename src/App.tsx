@@ -5,7 +5,7 @@ import {
   Save, ShieldCheck, History, Cpu, Wifi, TrendingUp, TrendingDown, AlertCircle, 
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
-  Smartphone, Banknote
+  Smartphone, Banknote, User, Mail, MapPin
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -235,10 +235,16 @@ export default function App() {
   const handleRegister = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
-    const newUsername = e.target.username.value;
+    const fd = new FormData(e.target);
+    const newUsername = fd.get('username') as string;
     try {
       const response = await axios.post('/api/auth/register', { 
-        name: e.target.name.value, username: newUsername, password: e.target.password.value 
+        name: fd.get('name'),
+        address: fd.get('address'),
+        username: newUsername,
+        email: fd.get('email'),
+        phone: fd.get('phone'),
+        password: fd.get('password')
       });
       if (response.data.success) {
         setLastRegUsername(newUsername);
@@ -247,6 +253,32 @@ export default function App() {
       } else { showToast(response.data.message, 'error'); }
     } catch (error) { showToast('Gagal mendaftar akun.', 'error'); } 
     finally { setIsLoading(false); }
+  };
+
+  const handleUpdateProfile = async (e: any) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const fd = new FormData(e.target);
+    try {
+      const response = await axios.post('/api/auth/update-profile', {
+        userId: currentUser.id,
+        name: fd.get('name'),
+        address: fd.get('address'),
+        email: fd.get('email'),
+        phone: fd.get('phone'),
+        password: fd.get('password')
+      });
+      if (response.data.success) {
+        setCurrentUser(response.data.user);
+        showToast('Profil Anda berhasil diperbarui!', 'success');
+      } else {
+        showToast(response.data.message || 'Gagal update profil', 'error');
+      }
+    } catch (error) {
+      showToast('Koneksi server gagal.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => { 
@@ -762,12 +794,35 @@ export default function App() {
             <p className="text-center text-sm text-slate-600 mt-4">Belum punya kamar? <button type="button" onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline">Daftar Baru</button></p>
           </form>
         ) : (
-          <form onSubmit={handleRegister} className="space-y-4">
-            <input type="text" name="name" placeholder="Nama Lengkap" autoComplete="name" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <input type="text" name="username" placeholder="Username Baru" autoComplete="username" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <input type="password" name="password" placeholder="Password Baru" autoComplete="new-password" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
-            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700">Daftar Akun</button>
-            <p className="text-center text-sm text-slate-600 mt-4">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline">Login</button></p>
+          <form onSubmit={handleRegister} className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Nama Lengkap</label>
+              <input type="text" name="name" placeholder="Contoh: Rian Pratama" autoComplete="name" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Alamat Lengkap</label>
+              <textarea name="address" rows={2} placeholder="Alamat asal / domisili KTP lengkap" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 resize-none" required></textarea>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Username</label>
+                <input type="text" name="username" placeholder="Username baru" autoComplete="username" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Nomor WhatsApp</label>
+                <input type="tel" name="phone" placeholder="Contoh: 08123456789" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Email Aktif</label>
+              <input type="email" name="email" placeholder="nama@email.com" autoComplete="email" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Password</label>
+              <input type="password" name="password" placeholder="Password akun" autoComplete="new-password" className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" required />
+            </div>
+            <button type="submit" disabled={isLoading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold shadow hover:bg-green-700 transition mt-2">Daftar Akun</button>
+            <p className="text-center text-sm text-slate-600 mt-3">Sudah punya akun? <button type="button" onClick={() => { setView('login'); setLastRegUsername(''); }} className="text-blue-600 font-bold hover:underline">Login</button></p>
           </form>
         )}
       </div>
@@ -2081,6 +2136,7 @@ export default function App() {
            <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
            <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
            <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
         </div>
 
         <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
@@ -2278,6 +2334,93 @@ export default function App() {
                    Belum ada riwayat pembayaran yang tercatat.
                  </div>
                )}
+             </div>
+          )}
+
+          {/* VIEW: PROFIL PENGHUNI */}
+          {view === 'resident_profile' && (
+             <div className="space-y-6 max-w-2xl mx-auto">
+               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-5">
+                 <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-4 border-blue-50 shadow-inner">
+                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                 </div>
+                 <div className="text-center sm:text-left flex-1">
+                   <h3 className="font-black text-xl text-slate-800">{currentUser.name}</h3>
+                   <p className="text-xs text-slate-400 font-mono">@{currentUser.username}</p>
+                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start mt-2.5">
+                     <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                       Kamar {rooms.find(r => r.id === currentUser.room_id)?.number || '-'}
+                     </span>
+                     {currentUser.is_fingerprint_active ? (
+                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
+                         <CheckCircle size={12} className="mr-1" /> Akses Aktif
+                       </span>
+                     ) : (
+                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center">
+                         <XCircle size={12} className="mr-1" /> Terkunci
+                       </span>
+                     )}
+                   </div>
+                 </div>
+               </div>
+
+               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                 <div className="border-b pb-4 mb-6">
+                   <h4 className="font-black text-slate-800 text-base flex items-center">
+                     <User className="mr-2 text-blue-600" size={18} /> Detail Data Diri Penghuni
+                   </h4>
+                   <p className="text-xs text-slate-500 mt-1">
+                     Perbarui informasi kontak WhatsApp, email, dan alamat tempat tinggal asal Anda.
+                   </p>
+                 </div>
+
+                 <form onSubmit={handleUpdateProfile} className="space-y-4">
+                   <div>
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nama Lengkap</label>
+                     <div className="relative">
+                       <User size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                       <input type="text" name="name" defaultValue={currentUser.name} className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                     </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor WhatsApp</label>
+                       <div className="relative">
+                         <Phone size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input type="tel" name="phone" defaultValue={currentUser.phone || ''} placeholder="08123456789" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                       </div>
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Email</label>
+                       <div className="relative">
+                         <Mail size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input type="email" name="email" defaultValue={currentUser.email || ''} placeholder="nama@email.com" className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                       </div>
+                     </div>
+                   </div>
+
+                   <div>
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Alamat Lengkap (KTP)</label>
+                     <div className="relative">
+                       <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
+                       <textarea name="address" defaultValue={currentUser.address || ''} rows={2} placeholder="Alamat asal / KTP" className="w-full pl-9 p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium" required></textarea>
+                     </div>
+                   </div>
+
+                   <div className="border-t pt-4">
+                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Ganti Password (Opsional)</label>
+                     <input type="password" name="password" placeholder="Kosongkan jika tidak ingin mengganti password" className="w-full p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" />
+                     <p className="text-[11px] text-slate-400 mt-1">Isi hanya jika Anda ingin mengubah password login Anda.</p>
+                   </div>
+
+                   <div className="pt-2">
+                     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition flex items-center justify-center">
+                       <Save size={16} className="mr-2" /> Simpan Perubahan Profil
+                     </button>
+                   </div>
+                 </form>
+               </div>
              </div>
           )}
         </div>
