@@ -3,7 +3,60 @@ import { sql } from '@vercel/postgres';
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      // 1. AUTO-HEALING: Otomatis sinkronkan kamar dengan penyewa aktif di tabel users
+      // 1. AUTO-EVICT: Cek penghuni yang telat bayar lebih dari 7 hari dari jatuh tempo
+      try {
+        const overdueUsers = await sql`
+          SELECT DISTINCT u.id, u.name, u.room_id
+          FROM users u
+          INNER JOIN bills b ON b.user_id = u.id
+          WHERE u.role = 'resident'
+            AND u.room_id IS NOT NULL
+            AND b.status = 'pending'
+            AND CURRENT_DATE > (b.due_date + INTERVAL '7 days')::DATE
+        `;
+
+        for (const u of overdueUsers.rows) {
+          // Kosongkan kamar agar bisa dipesan orang lain
+          await sql`
+            UPDATE rooms
+            SET status = 'available', resident_id = NULL
+            WHERE id = ${u.room_id}
+               OR number::text = ${String(u.room_id)}
+               OR resident_id = ${u.id}
+          `;
+
+          // Kunci akses sidik jari & lepas kamar dari akun penghuni
+          await sql`
+            UPDATE users
+            SET room_id = NULL,
+                is_fingerprint_active = false,
+                active_until = NULL
+            WHERE id = ${u.id}
+          `;
+
+          // Ubah tagihan pending yang sudah lewat > 7 hari menjadi 'batal'
+          await sql`
+            UPDATE bills
+            SET status = 'batal'
+            WHERE user_id = ${u.id}
+              AND status = 'pending'
+              AND CURRENT_DATE > (due_date + INTERVAL '7 days')::DATE
+          `;
+
+          // Catat ke log sistem
+          await sql`
+            INSERT INTO logs (user_id, action)
+            VALUES (
+              ${u.id},
+              'Akses sidik jari dikunci & kamar dikosongkan otomatis (Telat bayar > 7 hari dari jatuh tempo)'
+            )
+          `;
+        }
+      } catch (overdueErr) {
+        console.error('Auto-evict overdue > 7 days error:', overdueErr);
+      }
+
+      // 2. AUTO-HEALING: Otomatis sinkronkan kamar dengan penyewa aktif di tabel users
       try {
         await sql`
           UPDATE rooms r
