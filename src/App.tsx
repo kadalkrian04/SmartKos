@@ -150,26 +150,10 @@ const formatDateSafe = (dateVal: any) => {
 };
 
 const formatDueDate25 = (dateVal: any) => {
-  if (!dateVal) {
-    const now = new Date();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    return `25/${m}/${now.getFullYear()}`;
-  }
-  try {
-    const d = new Date(dateVal);
-    if (isNaN(d.getTime())) {
-      const now = new Date();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      return `25/${m}/${now.getFullYear()}`;
-    }
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    return `25/${m}/${d.getFullYear()}`;
-  } catch (e) {
-    return '25/-';
-  }
+  return formatDateSafe(dateVal);
 };
 
-// Evaluasi status pembayaran kamar berdasarkan aturan tanggal 25
+// Evaluasi status pembayaran kamar berdasarkan tanggal jatuh tempo masing-masing penghuni
 const isResidentPaid = (resident: any, residentBills: any[]) => {
   if (!resident) return false;
 
@@ -177,46 +161,31 @@ const isResidentPaid = (resident: any, residentBills: any[]) => {
   const pendingBills = residentBills.filter(b => b.status === 'pending');
   const hasPendingBill = pendingBills.length > 0;
 
-  // Cek apakah penghuni sudah pernah melakukan pembayaran atau akses sidik jari telah aktif
   const isEverPaid = Boolean(
     hasLunasBill || 
     resident.is_fingerprint_active || 
     (resident.active_until && new Date(resident.active_until).getTime() > 0)
   );
 
-  // Jika penghuni baru belum pernah membayar sama sekali, statusnya Belum Lunas
   if (!isEverPaid) {
     return false;
   }
 
-  // Jika tidak ada tagihan pending yang tertahan, statusnya Lunas
   if (!hasPendingBill) {
     return true;
   }
 
-  // Jika ada tagihan pending berjalan, periksa apakah tanggal hari ini sudah melewati tanggal 25
   const now = new Date();
   const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const isOverdue = pendingBills.some(b => {
-    let dueYear = now.getFullYear();
-    let dueMonth = now.getMonth();
-    let dueDay = 25;
-
-    if (b.due_date) {
-      const d = new Date(b.due_date);
-      if (!isNaN(d.getTime())) {
-        dueYear = d.getFullYear();
-        dueMonth = d.getMonth();
-        dueDay = 25;
-      }
-    }
-
-    const dueDateOnly = new Date(dueYear, dueMonth, dueDay);
+    if (!b.due_date) return false;
+    const d = new Date(b.due_date);
+    if (isNaN(d.getTime())) return false;
+    const dueDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     return todayOnly.getTime() > dueDateOnly.getTime();
   });
 
-  // Sebelum tanggal 25 (misal tanggal 1-25), status kamar tetap LUNAS
   return !isOverdue;
 };
 
