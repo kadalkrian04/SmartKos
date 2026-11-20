@@ -4,11 +4,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       // Urutkan akun baru terdaftar (id terbaru) di paling atas
-      const { rows } = await sql`
-        SELECT id, role, name, username, room_id, active_until, is_fingerprint_active, fingerprint_id, address, email, phone, created_at 
-        FROM users 
-        ORDER BY id DESC
-      `;
+      const { rows } = await sql`SELECT * FROM users ORDER BY id DESC`;
       return res.status(200).json(Array.isArray(rows) ? rows : []);
     }
 
