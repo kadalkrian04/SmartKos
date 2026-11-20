@@ -1,17 +1,28 @@
 import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
-  const action = req.query.action || (req.url.includes('login') ? 'login' : 'register');
+  const action =
+    req.query.action ||
+    (req.url.includes('update-profile')
+      ? 'update-profile'
+      : req.url.includes('login')
+      ? 'login'
+      : 'register');
 
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method tidak diizinkan' });
   }
 
-  // Pastikan kolom baru (address, email, phone) tersedia di database
+  // Pastikan kolom baru (address, email, phone, nik, no_kk, dan foto dokumen) tersedia di database
   try {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100) DEFAULT ''`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS nik VARCHAR(20) DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS no_kk VARCHAR(20) DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_selfie TEXT DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_ktp TEXT DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_kk TEXT DEFAULT ''`;
   } catch (migErr) {}
 
   // LOGIKA LOGIN
@@ -51,20 +62,56 @@ export default async function handler(req, res) {
     }
   }
 
-  // LOGIKA UPDATE PROFIL PENGHUNI
+  // LOGIKA UPDATE PROFIL PENGHUNI (DENGAN NIK, KK & PROTEKSI FOTO PERMANEN)
   if (action === 'update-profile') {
-    const { userId, name, address, email, phone, password } = req.body;
+    const {
+      userId,
+      name,
+      nik,
+      no_kk,
+      address,
+      email,
+      phone,
+      password,
+      photo_selfie,
+      photo_ktp,
+      photo_kk
+    } = req.body;
+
     try {
+      const newSelfie = photo_selfie && photo_selfie.trim() !== '' ? photo_selfie : null;
+      const newKtp = photo_ktp && photo_ktp.trim() !== '' ? photo_ktp : null;
+      const newKk = photo_kk && photo_kk.trim() !== '' ? photo_kk : null;
+
       if (password && password.trim() !== '') {
         await sql`
           UPDATE users 
-          SET name = ${name}, address = ${address || ''}, email = ${email || ''}, phone = ${phone || ''}, password = ${password}
+          SET 
+            name = ${name},
+            nik = ${nik || ''},
+            no_kk = ${no_kk || ''},
+            address = ${address || ''},
+            email = ${email || ''},
+            phone = ${phone || ''},
+            password = ${password},
+            photo_selfie = CASE WHEN photo_selfie IS NOT NULL AND photo_selfie <> '' THEN photo_selfie ELSE COALESCE(${newSelfie}, photo_selfie) END,
+            photo_ktp = CASE WHEN photo_ktp IS NOT NULL AND photo_ktp <> '' THEN photo_ktp ELSE COALESCE(${newKtp}, photo_ktp) END,
+            photo_kk = CASE WHEN photo_kk IS NOT NULL AND photo_kk <> '' THEN photo_kk ELSE COALESCE(${newKk}, photo_kk) END
           WHERE id = ${userId}
         `;
       } else {
         await sql`
           UPDATE users 
-          SET name = ${name}, address = ${address || ''}, email = ${email || ''}, phone = ${phone || ''}
+          SET 
+            name = ${name},
+            nik = ${nik || ''},
+            no_kk = ${no_kk || ''},
+            address = ${address || ''},
+            email = ${email || ''},
+            phone = ${phone || ''},
+            photo_selfie = CASE WHEN photo_selfie IS NOT NULL AND photo_selfie <> '' THEN photo_selfie ELSE COALESCE(${newSelfie}, photo_selfie) END,
+            photo_ktp = CASE WHEN photo_ktp IS NOT NULL AND photo_ktp <> '' THEN photo_ktp ELSE COALESCE(${newKtp}, photo_ktp) END,
+            photo_kk = CASE WHEN photo_kk IS NOT NULL AND photo_kk <> '' THEN photo_kk ELSE COALESCE(${newKk}, photo_kk) END
           WHERE id = ${userId}
         `;
       }

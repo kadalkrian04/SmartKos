@@ -6,7 +6,7 @@ import {
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
   Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles,
-  MessageSquare, Send
+  MessageSquare, Send, Camera, Upload, Image
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -262,6 +262,17 @@ function AppContent() {
 
   const [testWaPhone, setTestWaPhone] = useState('');
 
+  // State untuk upload foto dokumen penghuni (Base64 sebelum disimpan ke DB)
+  const [uploadDocs, setUploadDocs] = useState<{
+    photo_selfie: string | null;
+    photo_ktp: string | null;
+    photo_kk: string | null;
+  }>({
+    photo_selfie: null,
+    photo_ktp: null,
+    photo_kk: null,
+  });
+
   // State Pengelolaan Akun & Pencarian User
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userFilterTab, setUserFilterTab] = useState<'all' | 'no_room' | 'has_room' | 'active'>('all');
@@ -288,6 +299,58 @@ function AppContent() {
   const showToast = (msg: string, type = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleFileToBase64 = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'photo_selfie' | 'photo_ktp' | 'photo_kk'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('File harus berupa gambar (JPG/PNG)!', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const MAX_SIZE = 1000; // Maksimal 1000px agar teks KTP/KK tetap jelas dibaca
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+        setUploadDocs((prev) => ({
+          ...prev,
+          [field]: compressedBase64,
+        }));
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -434,17 +497,33 @@ function AppContent() {
     setIsLoading(true);
     const fd = new FormData(e.target);
     try {
-      const response = await axios.post('/api/auth/update-profile', {
+      const payload: any = {
         userId: currentUser?.id,
         name: fd.get('name'),
+        nik: fd.get('nik'),
+        no_kk: fd.get('no_kk'),
         address: fd.get('address'),
         email: fd.get('email'),
         phone: fd.get('phone'),
         password: fd.get('password')
-      });
+      };
+
+      // Hanya kirim foto jika belum tersimpan di DB & user baru mengunggahnya
+      if (!currentUser?.photo_selfie && uploadDocs.photo_selfie) {
+        payload.photo_selfie = uploadDocs.photo_selfie;
+      }
+      if (!currentUser?.photo_ktp && uploadDocs.photo_ktp) {
+        payload.photo_ktp = uploadDocs.photo_ktp;
+      }
+      if (!currentUser?.photo_kk && uploadDocs.photo_kk) {
+        payload.photo_kk = uploadDocs.photo_kk;
+      }
+
+      const response = await axios.post('/api/auth/update-profile', payload);
       if (response.data.success) {
         setCurrentUser(response.data.user);
-        showToast('Profil Anda berhasil diperbarui!', 'success');
+        setUploadDocs({ photo_selfie: null, photo_ktp: null, photo_kk: null });
+        showToast('Profil & dokumen Anda berhasil diperbarui!', 'success');
       } else {
         showToast(response.data.message || 'Gagal update profil', 'error');
       }
@@ -1730,11 +1809,10 @@ function AppContent() {
           </div>
         )}
 
-        {/* VIEW: KELOLA USER (PANEL ADMIN PROFESIONAL: PENCARIAN NAMA & USER BARU DI ATAS) */}
+        {/* VIEW: KELOLA USER */}
         {view === 'admin_users' && (() => {
           const nonAdminUsers = safeUsers.filter(u => !u.role || u.role === 'resident' || u.role !== 'admin');
 
-          // ATURAN MUTLAK: Pengguna baru ditaruh di paling atas (berdasarkan urutan pendaftaran / ID terbaru)
           const sortedAdminUsers = [...nonAdminUsers].sort((a, b) => {
             const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
             const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1742,7 +1820,6 @@ function AppContent() {
             return (Number(b.id) || 0) - (Number(a.id) || 0);
           });
 
-          // Filter Pencarian Nama / Username / Telepon
           const searchedUsers = sortedAdminUsers.filter(u => {
             const q = userSearchQuery.toLowerCase().trim();
             if (q) {
@@ -1765,7 +1842,6 @@ function AppContent() {
 
           return (
             <div className="space-y-6">
-              {/* Header Panel Kelola Akun */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h3 className="text-xl font-black text-slate-800 flex items-center">
@@ -1784,7 +1860,6 @@ function AppContent() {
                 </button>
               </div>
 
-              {/* 4 Mini Kartu Ringkasan Akun */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
@@ -1827,9 +1902,7 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* Bilah Pencarian Nama & Filter Tab Status */}
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
-                {/* Kolom Pencarian Berdasarkan Nama / Username */}
                 <div className="relative flex-1 max-w-md">
                   <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
                   <input
@@ -1849,7 +1922,6 @@ function AppContent() {
                   )}
                 </div>
 
-                {/* Sub Tab Filter */}
                 <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
                   <button
                     onClick={() => setUserFilterTab('all')}
@@ -1878,7 +1950,6 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* Tabel Pengguna Model Admin Profesional */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs whitespace-nowrap">
@@ -1904,7 +1975,6 @@ function AppContent() {
                           <tr key={u.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-3.5 text-center text-slate-400 font-mono">{idx + 1}</td>
 
-                            {/* Nama & Username */}
                             <td className="p-3.5">
                               <div className="flex items-center space-x-3">
                                 <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
@@ -1924,7 +1994,6 @@ function AppContent() {
                               </div>
                             </td>
 
-                            {/* Kontak & WhatsApp */}
                             <td className="p-3.5">
                               <div className="space-y-0.5">
                                 {u.phone ? (
@@ -1945,7 +2014,6 @@ function AppContent() {
                               </div>
                             </td>
 
-                            {/* Kamar Ditempati */}
                             <td className="p-3.5">
                               {room ? (
                                 <div className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
@@ -1960,7 +2028,6 @@ function AppContent() {
                               )}
                             </td>
 
-                            {/* Status Akses & Sidik Jari */}
                             <td className="p-3.5">
                               <div className="space-y-1">
                                 {u.is_fingerprint_active ? (
@@ -1978,15 +2045,12 @@ function AppContent() {
                               </div>
                             </td>
 
-                            {/* Tanggal Terdaftar */}
                             <td className="p-3.5 text-slate-500 text-[11px]">
                               {formatDateSafe(u.created_at)}
                             </td>
 
-                            {/* Aksi Pengelola */}
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1.5">
-                                {/* Toggle Akses Cepat */}
                                 <button
                                   type="button"
                                   onClick={() => handleToggleUserAccess(u)}
@@ -2001,7 +2065,6 @@ function AppContent() {
                                   {u.is_fingerprint_active ? <Lock size={14} /> : <Unlock size={14} />}
                                 </button>
 
-                                {/* Edit Profil Akun */}
                                 <button
                                   type="button"
                                   onClick={() => setAdminUserModal({ type: 'edit', data: u })}
@@ -2011,7 +2074,6 @@ function AppContent() {
                                   <Edit size={14} />
                                 </button>
 
-                                {/* Hapus Akun */}
                                 <button
                                   type="button"
                                   onClick={() => setDeleteUserModal(u)}
@@ -2185,7 +2247,6 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Grafik Tren 6 Bulan */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="mb-6">
                 <h3 className="font-bold text-base text-slate-800">Tren 6 Bulan Terakhir</h3>
@@ -2241,7 +2302,6 @@ function AppContent() {
               </div>
             </div>
 
-            {/* TABEL BUKU KAS GABUNGAN DI LAYAR */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                 <div>
@@ -2325,7 +2385,6 @@ function AppContent() {
               </div>
             </div>
 
-            {/* FORMAT CETAK DOKUMEN RESMI (HANYA SAAT CETAK / PDF) */}
             <div className="hidden print:block print-document-container p-2 text-black">
               <div className="text-center border-b-2 border-black pb-4 mb-5">
                 <h1 className="text-2xl font-black uppercase tracking-wider">SMARTKOS MANAGEMENT SYSTEM</h1>
@@ -2459,7 +2518,6 @@ function AppContent() {
                   </p>
                 </div>
 
-                {/* Sub Tab Switcher 3 Tombol */}
                 <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
                   <button 
                     onClick={() => setSettingsTab('tokopay')} 
@@ -2541,7 +2599,6 @@ function AppContent() {
               </div>
             )}
 
-            {/* TAB 3: PENGATURAN WHATSAPP GATEWAY (FONNTE) */}
             {settingsTab === 'fonnte' && (
               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                 <div className="border-b pb-4">
@@ -2599,7 +2656,6 @@ function AppContent() {
                   </div>
                 </form>
 
-                {/* Kotak Pengujian Kirim Pesan */}
                 <div className="pt-4 border-t border-slate-100">
                   <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-2">
                     Uji Coba Pengiriman Pesan WhatsApp
@@ -2920,7 +2976,6 @@ function AppContent() {
                   ></textarea>
                 </div>
 
-                {/* Penetapan Kamar */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tetapkan Kamar Hunian</label>
                   <select
@@ -3030,7 +3085,6 @@ function AppContent() {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Top Navbar Konsisten untuk Semua Penghuni */}
         <nav className="bg-white shadow-sm border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <div className="font-black text-xl flex items-center">
             <Fingerprint className="mr-2 text-blue-600" /> SmartKos
@@ -3048,7 +3102,6 @@ function AppContent() {
           </div>
         </nav>
 
-        {/* Tab Navigasi - Selalu Muncul Meskipun Belum Pilih Kamar */}
         <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
            <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
            <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
@@ -3059,7 +3112,6 @@ function AppContent() {
         <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
           {view === 'resident_dashboard' && (
              !currentUser?.room_id ? (
-               /* TAMPILAN PILIH KAMAR BARU: SIMPEL, COMPACT & TIDAK NUMPUK */
                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
                    <div>
@@ -3075,7 +3127,6 @@ function AppContent() {
                    </span>
                  </div>
 
-                 {/* OPSI 1: PILIHAN CEPAT VIA DROPDOWN */}
                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                    <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
                      Pilihan Cepat (Dropdown)
@@ -3110,7 +3161,6 @@ function AppContent() {
                    </div>
                  </div>
 
-                 {/* OPSI 2: GRID DENAH KAMAR KOMPAK */}
                  <div className="space-y-3">
                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -3138,7 +3188,6 @@ function AppContent() {
                      </div>
                    </div>
 
-                   {/* Grid Ringkas & Kompak (Tidak Memakan Tempat) */}
                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
                      {displayedAvailRooms.map(room => {
                        const isSelected = selectedRoomId === room.id;
@@ -3198,7 +3247,6 @@ function AppContent() {
                  </div>
                </div>
              ) : (
-               /* JIKA SUDAH PILIH KAMAR: TAMPILKAN TAGIHAN & STATUS KAMAR */
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                   <h3 className="text-lg font-bold mb-4 flex items-center border-b pb-3"><CreditCard className="mr-2 text-blue-600"/> Tagihan Sewa Kamar</h3>
@@ -3432,9 +3480,17 @@ function AppContent() {
           {view === 'resident_profile' && (
              <div className="space-y-6 max-w-2xl mx-auto">
                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-5">
-                 <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-4 border-blue-50 shadow-inner">
-                   {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                 </div>
+                 {currentUser?.photo_selfie ? (
+                   <img
+                     src={currentUser.photo_selfie}
+                     alt="Foto Diri"
+                     className="w-20 h-20 rounded-full object-cover border-4 border-blue-100 shadow-sm"
+                   />
+                 ) : (
+                   <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-4 border-blue-50 shadow-inner">
+                     {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                   </div>
+                 )}
                  <div className="text-center sm:text-left flex-1">
                    <h3 className="font-black text-xl text-slate-800">{currentUser?.name}</h3>
                    <p className="text-xs text-slate-400 font-mono">@{currentUser?.username}</p>
@@ -3461,7 +3517,7 @@ function AppContent() {
                      <User className="mr-2 text-blue-600" size={18} /> Detail Data Diri Penghuni
                    </h4>
                    <p className="text-xs text-slate-500 mt-1">
-                     Perbarui informasi kontak WhatsApp, email, dan alamat tempat tinggal asal Anda.
+                     Lengkapi identitas NIK, Kartu Keluarga, kontak WhatsApp, serta dokumen verifikasi Anda.
                    </p>
                  </div>
 
@@ -3471,6 +3527,42 @@ function AppContent() {
                      <div className="relative">
                        <User size={16} className="absolute left-3 top-3.5 text-slate-400" />
                        <input type="text" name="name" defaultValue={currentUser?.name || ''} className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                     </div>
+                   </div>
+
+                   {/* NIK & NOMOR KARTU KELUARGA */}
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor NIK (16 Digit)</label>
+                       <div className="relative">
+                         <CreditCard size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input
+                           type="text"
+                           name="nik"
+                           maxLength={16}
+                           inputMode="numeric"
+                           defaultValue={currentUser?.nik || ''}
+                           placeholder="3578xxxxxxxxxxxx"
+                           className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium"
+                           required
+                         />
+                       </div>
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor Kartu Keluarga (KK)</label>
+                       <div className="relative">
+                         <FileText size={16} className="absolute left-3 top-3.5 text-slate-400" />
+                         <input
+                           type="text"
+                           name="no_kk"
+                           maxLength={16}
+                           inputMode="numeric"
+                           defaultValue={currentUser?.no_kk || ''}
+                           placeholder="3578xxxxxxxxxxxx"
+                           className="w-full pl-9 p-3 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium"
+                           required
+                         />
+                       </div>
                      </div>
                    </div>
 
@@ -3496,6 +3588,80 @@ function AppContent() {
                      <div className="relative">
                        <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
                        <textarea name="address" defaultValue={currentUser?.address || ''} rows={2} placeholder="Alamat asal / KTP" className="w-full pl-9 p-2.5 text-sm border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-medium" required></textarea>
+                     </div>
+                   </div>
+
+                   {/* UPLOAD DOKUMEN IDENTITAS (TERKUNCI PERMANEN SETELAH DISIMPAN) */}
+                   <div className="border-t pt-5 space-y-4">
+                     <div>
+                       <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center">
+                         <Camera size={15} className="mr-1.5 text-blue-600" /> Dokumen Identitas Penghuni
+                       </h5>
+                       <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 font-medium">
+                         <Lock size={12} className="inline mr-1 -mt-0.5" />
+                         Foto yang sudah diunggah dan disimpan ke database <strong>tidak dapat dihapus atau diubah</strong> oleh penghuni demi keamanan data kos.
+                       </p>
+                     </div>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                       {[
+                         { key: 'photo_selfie' as const, label: 'Foto Diri', saved: currentUser?.photo_selfie },
+                         { key: 'photo_ktp' as const, label: 'Foto KTP', saved: currentUser?.photo_ktp },
+                         { key: 'photo_kk' as const, label: 'Foto Kartu Keluarga', saved: currentUser?.photo_kk },
+                       ].map((doc) => {
+                         const previewSrc = doc.saved || uploadDocs[doc.key];
+                         const isLocked = Boolean(doc.saved);
+
+                         return (
+                           <div
+                             key={doc.key}
+                             className={`p-3 rounded-xl border flex flex-col justify-between ${
+                               isLocked ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                             }`}
+                           >
+                             <div className="flex items-center justify-between mb-2">
+                               <span className="text-xs font-bold text-slate-700">{doc.label}</span>
+                               {isLocked && (
+                                 <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                   <Lock size={10} className="mr-1" /> Tersimpan
+                                 </span>
+                               )}
+                             </div>
+
+                             {previewSrc ? (
+                               <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-white aspect-[4/3] mb-2">
+                                 <img
+                                   src={previewSrc}
+                                   alt={doc.label}
+                                   className="w-full h-full object-cover"
+                                 />
+                               </div>
+                             ) : (
+                               <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white aspect-[4/3] mb-2 flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                                 <Image size={24} className="mb-1 opacity-60" />
+                                 <span className="text-[10px] font-medium">Belum ada foto</span>
+                               </div>
+                             )}
+
+                             {isLocked ? (
+                               <p className="text-[10px] text-emerald-700 font-semibold text-center py-1">
+                                 Terkunci di Database
+                               </p>
+                             ) : (
+                               <label className="w-full py-2 px-3 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold text-center cursor-pointer transition flex items-center justify-center">
+                                 <Upload size={13} className="mr-1.5" />
+                                 {uploadDocs[doc.key] ? 'Ganti Pilihan' : 'Upload Foto'}
+                                 <input
+                                   type="file"
+                                   accept="image/*"
+                                   onChange={(e) => handleFileToBase64(e, doc.key)}
+                                   className="hidden"
+                                 />
+                               </label>
+                             )}
+                           </div>
+                         );
+                       })}
                      </div>
                    </div>
 
