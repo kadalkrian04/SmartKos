@@ -6,7 +6,7 @@ import {
   Home, Calendar, UserCheck, Receipt, DollarSign, ChevronRight, Phone, Clock,
   BarChart3, Printer, Search, ArrowUpRight, ArrowDownRight, Wallet, FileSpreadsheet, Download,
   Smartphone, Banknote, User, Mail, MapPin, UserPlus, Lock, Unlock, X, Sparkles,
-  MessageSquare, Send, Camera, Upload, Image
+  MessageSquare, Send, Camera, Upload, Image, Eye, EyeOff, Key
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -278,6 +278,9 @@ function AppContent() {
   const [userFilterTab, setUserFilterTab] = useState<'all' | 'no_room' | 'has_room' | 'active'>('all');
   const [adminUserModal, setAdminUserModal] = useState<{ type: 'add' | 'edit', data?: any } | null>(null);
   const [deleteUserModal, setDeleteUserModal] = useState<any | null>(null);
+  const [viewUserDocsModal, setViewUserDocsModal] = useState<any | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
+  const [previewImageModal, setPreviewImageModal] = useState<{ title: string, src: string } | null>(null);
 
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
@@ -1433,9 +1436,7 @@ function AppContent() {
                   const residentBills = safeBills.filter(b => targetUserId && String(b.user_id).trim() === String(targetUserId).trim());
                   const isOccupied = Boolean(resident || room.status === 'occupied' || room.resident_id);
 
-                  // Gunakan fungsi penilaian cerdas aturan tanggal 25
                   const isPaid = isResidentPaid(resident, residentBills);
-
                   const floorLabel = getRoomFloor(room) === 3 ? 'Lantai 3' : 'Lantai 2';
 
                   const masukDateStr = formatDateSafe(resident?.created_at);
@@ -1583,7 +1584,6 @@ function AppContent() {
               </div>
             </div>
 
-            {/* TAB 1: TAGIHAN BERJALAN */}
             {paymentTab === 'pending' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -1675,7 +1675,6 @@ function AppContent() {
               </div>
             )}
 
-            {/* TAB 2: RIWAYAT PEMBAYARAN LUNAS */}
             {paymentTab === 'history' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -1848,7 +1847,7 @@ function AppContent() {
                     <Users className="mr-2 text-blue-600" size={24} /> Kelola User & Akun Penghuni
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Manajemen data akun, penetapan kamar, status akses sidik jari, dan kontrol penuh pengguna
+                    Manajemen data akun, dokumen identitas (KTP/KK), password, penetapan kamar, dan status akses
                   </p>
                 </div>
                 <button
@@ -1956,12 +1955,12 @@ function AppContent() {
                     <thead className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
                         <th className="p-3.5 text-center w-12">No</th>
-                        <th className="p-3.5">Akun Penghuni</th>
+                        <th className="p-3.5">Akun & Password</th>
                         <th className="p-3.5">Kontak & WhatsApp</th>
                         <th className="p-3.5">Kamar Ditempati</th>
                         <th className="p-3.5">Status Akses & Sidik Jari</th>
                         <th className="p-3.5">Tanggal Daftar</th>
-                        <th className="p-3.5 text-center w-36">Aksi Pengelola</th>
+                        <th className="p-3.5 text-center w-44">Aksi Pengelola</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1970,6 +1969,8 @@ function AppContent() {
                         const isNewUser = !u.room_id;
                         const cleanPhone = (u.phone || '').replace(/\D/g, '');
                         const waLink = cleanPhone ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`) : null;
+                        const isPwdVisible = Boolean(visiblePasswords[u.id]);
+                        const hasAnyDoc = Boolean(u.photo_selfie || u.photo_ktp || u.photo_kk);
 
                         return (
                           <tr key={u.id} className="hover:bg-slate-50/80 transition">
@@ -1977,9 +1978,19 @@ function AppContent() {
 
                             <td className="p-3.5">
                               <div className="flex items-center space-x-3">
-                                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
-                                  {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                                </div>
+                                {u.photo_selfie ? (
+                                  <img
+                                    src={u.photo_selfie}
+                                    alt={u.name}
+                                    onClick={() => setViewUserDocsModal(u)}
+                                    className="w-9 h-9 rounded-xl object-cover border border-blue-200 shadow-xs flex-shrink-0 cursor-pointer hover:opacity-85 transition"
+                                    title="Klik untuk lihat dokumen"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200/60 shadow-xs flex-shrink-0">
+                                    {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                                  </div>
+                                )}
                                 <div>
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-bold text-slate-800 text-sm">{u.name}</span>
@@ -1990,6 +2001,25 @@ function AppContent() {
                                     )}
                                   </div>
                                   <span className="text-[11px] text-slate-400 font-mono block">@{u.username}</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <Key size={10} className="text-slate-400" />
+                                    <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                      {isPwdVisible ? (u.password || '-') : '••••••••'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setVisiblePasswords(prev => ({
+                                          ...prev,
+                                          [u.id]: !prev[u.id]
+                                        }))
+                                      }
+                                      className="text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                                      title={isPwdVisible ? 'Sembunyikan Password' : 'Lihat Password'}
+                                    >
+                                      {isPwdVisible ? <EyeOff size={12} /> : <Eye size={12} />}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -2051,6 +2081,22 @@ function AppContent() {
 
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewUserDocsModal(u)}
+                                  className={`p-1.5 rounded-lg border transition cursor-pointer relative ${
+                                    hasAnyDoc
+                                      ? 'bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100'
+                                      : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                  title="Lihat Dokumen (Foto Diri, KTP, KK) & Password"
+                                >
+                                  <Image size={14} />
+                                  {hasAnyDoc && (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5 border border-white"></span>
+                                  )}
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() => handleToggleUserAccess(u)}
@@ -3028,6 +3074,154 @@ function AppContent() {
           </div>
         )}
 
+        {/* Modal Admin: Lihat Dokumen & Detail Akun Penghuni */}
+        {viewUserDocsModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/70">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-purple-100 text-purple-600 rounded-xl">
+                    <FileText size={22} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-base">Dokumen & Detail Akun Penghuni</h3>
+                    <p className="text-xs text-slate-500">
+                      {viewUserDocsModal.name} (<span className="font-mono">@{viewUserDocsModal.username}</span>)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewUserDocsModal(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto space-y-5">
+                {/* Ringkasan Identitas & Kredensial */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Nomor NIK</span>
+                    <span className="font-mono font-bold text-slate-800 text-sm">{viewUserDocsModal.nik || '-'}</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Nomor Kartu Keluarga (KK)</span>
+                    <span className="font-mono font-bold text-slate-800 text-sm">{viewUserDocsModal.no_kk || '-'}</span>
+                  </div>
+                  <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                      <Key size={11} /> Password Akun
+                    </span>
+                    <span className="font-mono font-black text-amber-900 text-sm select-all">
+                      {viewUserDocsModal.password || '-'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Alamat Lengkap (KTP)</span>
+                    <span className="font-medium text-slate-700">{viewUserDocsModal.address || '-'}</span>
+                  </div>
+                </div>
+
+                {/* Galeri 3 Dokumen Foto */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center">
+                    <Camera size={14} className="mr-1.5 text-purple-600" /> Foto Dokumen Terunggah (Klik gambar untuk perbesar)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      { label: 'Foto Diri', src: viewUserDocsModal.photo_selfie },
+                      { label: 'Foto KTP', src: viewUserDocsModal.photo_ktp },
+                      { label: 'Foto Kartu Keluarga', src: viewUserDocsModal.photo_kk },
+                    ].map((doc) => (
+                      <div key={doc.label} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-700">{doc.label}</span>
+                          {doc.src ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Ada</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">Kosong</span>
+                          )}
+                        </div>
+
+                        {doc.src ? (
+                          <>
+                            <div
+                              onClick={() => setPreviewImageModal({ title: `${doc.label} - ${viewUserDocsModal.name}`, src: doc.src })}
+                              className="rounded-lg overflow-hidden border border-slate-200 bg-white aspect-[4/3] mb-2 cursor-pointer group relative"
+                            >
+                              <img src={doc.src} alt={doc.label} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition flex items-center justify-center">
+                                <span className="opacity-0 group-hover:opacity-100 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1 rounded-full transition">
+                                  Perbesar
+                                </span>
+                              </div>
+                            </div>
+                            <a
+                              href={doc.src}
+                              download={`${doc.label.replace(/\s+/g, '_')}_${viewUserDocsModal.username}.jpg`}
+                              className="w-full py-1.5 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-[11px] font-bold text-center flex items-center justify-center transition"
+                            >
+                              <Download size={12} className="mr-1" /> Unduh
+                            </a>
+                          </>
+                        ) : (
+                          <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white aspect-[4/3] flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                            <Image size={24} className="mb-1 opacity-50" />
+                            <span className="text-[10px] font-medium">Belum diunggah user</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewUserDocsModal(null)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Lightbox Perbesar Gambar Dokumen */}
+        {previewImageModal && (
+          <div
+            onClick={() => setPreviewImageModal(null)}
+            className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-[60]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-3xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-3.5 border-b flex justify-between items-center bg-slate-50">
+                <span className="font-bold text-sm text-slate-800">{previewImageModal.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageModal(null)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-3 bg-slate-900 flex justify-center items-center max-h-[80vh] overflow-auto">
+                <img
+                  src={previewImageModal.src}
+                  alt={previewImageModal.title}
+                  className="max-w-full max-h-[75vh] object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal Konfirmasi Hapus Akun Pengguna */}
         {deleteUserModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -3530,7 +3724,6 @@ function AppContent() {
                      </div>
                    </div>
 
-                   {/* NIK & NOMOR KARTU KELUARGA */}
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                      <div>
                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nomor NIK (16 Digit)</label>
@@ -3591,7 +3784,6 @@ function AppContent() {
                      </div>
                    </div>
 
-                   {/* UPLOAD DOKUMEN IDENTITAS (TERKUNCI PERMANEN SETELAH DISIMPAN) */}
                    <div className="border-t pt-5 space-y-4">
                      <div>
                        <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center">
