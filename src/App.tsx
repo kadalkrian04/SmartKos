@@ -3100,7 +3100,6 @@ function AppContent() {
               </div>
 
               <div className="p-5 overflow-y-auto space-y-5">
-                {/* Ringkasan Identitas & Kredensial */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Nomor NIK</span>
@@ -3124,7 +3123,6 @@ function AppContent() {
                   </div>
                 </div>
 
-                {/* Galeri 3 Dokumen Foto */}
                 <div>
                   <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center">
                     <Camera size={14} className="mr-1.5 text-purple-600" /> Foto Dokumen Terunggah (Klik gambar untuk perbesar)
@@ -3297,10 +3295,11 @@ function AppContent() {
         </nav>
 
         <div className="bg-white border-b px-2 md:px-6 flex space-x-2 md:space-x-6 justify-center text-xs md:text-sm font-bold shadow-sm overflow-x-auto">
-           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
-           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
-           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
-           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
+           <button onClick={() => setView('resident_dashboard')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Beranda</button>
+           <button onClick={() => setView('resident_fingerprint')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_fingerprint' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Sidik Jari</button>
+           <button onClick={() => setView('resident_history')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Riwayat Pembayaran</button>
+           <button onClick={() => setView('resident_profile')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Profil Saya</button>
+           <button onClick={() => setView('resident_policy')} className={`py-4 px-2 md:px-4 border-b-4 transition cursor-pointer whitespace-nowrap ${view === 'resident_policy' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Peraturan Kebijakan</button>
         </div>
 
         <div className="max-w-4xl mx-auto p-4 md:p-6 w-full flex-1 space-y-6">
@@ -3871,6 +3870,139 @@ function AppContent() {
                  </form>
                </div>
              </div>
+          )}
+
+          {/* VIEW: PERATURAN & KEBIJAKAN */}
+          {view === 'resident_policy' && (
+            <div className="space-y-6 max-w-3xl mx-auto">
+              {/* Header Banner */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck size={26} />
+                </div>
+                <div>
+                  <h3 className="font-black text-xl text-slate-800">Peraturan & Kebijakan SmartKos</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Pedoman hak dan kewajiban penyewa berdasarkan hukum yang berlaku di Indonesia demi menjaga kenyamanan, keamanan, dan ketenteraman bersama di lingkungan kos.
+                  </p>
+                </div>
+              </div>
+
+              {/* BAGIAN 1: HAK PENYEWA */}
+              <div className="bg-white p-6 md:p-7 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3.5">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center">
+                    1
+                  </span>
+                  <h4 className="font-black text-base text-slate-800">
+                    Hak Penyewa yang Dilindungi Hukum
+                  </h4>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    {
+                      title: 'Hak Menempati Kamar dengan Layak & Aman',
+                      law: 'Pasal 1550 KUH Perdata',
+                      desc: 'Pemilik kos wajib menyerahkan kamar dalam kondisi layak huni, melakukan perbaikan kerusakan besar (misalnya atap bocor atau instalasi listrik rusak bukan karena kelalaian penyewa), dan menjamin ketenteraman penyewa selama masa sewa berlangsung.'
+                    },
+                    {
+                      title: 'Hak atas Privasi Ruangan',
+                      law: 'Pasal 257 UU No. 1 Tahun 2023 / KUHP Baru',
+                      desc: 'Selama masa sewa masih aktif, kamar kos secara hukum adalah ruang privat penyewa. Pemilik kos tidak berhak masuk ke dalam kamar seenaknya tanpa izin penyewa, kecuali dalam keadaan darurat (seperti kebakaran/kebocoran parah) atau sudah disepakati sebelumnya dalam perjanjian sewa.'
+                    },
+                    {
+                      title: 'Perlindungan dari Pengusiran Sepihak',
+                      law: 'PP No. 44 Tahun 1994',
+                      desc: 'Selama penyewa membayar tepat waktu dan mematuhi tata tertib, pemilik kos tidak boleh mengusir penyewa atau memutus sewa secara sepihak sebelum jangka waktu sewa berakhir.'
+                    },
+                    {
+                      title: 'Larangan Penyitaan Barang Sepihak',
+                      law: 'Perlindungan Hukum Perdata & Pidana',
+                      desc: 'Jika penyewa menunggak bayar, pemilik kos berhak menagih atau mengakhiri masa sewa sesuai perjanjian, namun tidak boleh menyita atau menjual barang pribadi penyewa secara sepihak tanpa kesepakatan atau putusan pengadilan (bisa masuk kategori perbuatan melawan hukum atau penggelapan).'
+                    }
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl bg-emerald-50/40 border border-emerald-100 hover:border-emerald-200 transition"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
+                          <span>{item.title}</span>
+                        </h5>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          {item.law}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed pl-6">
+                        {item.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* BAGIAN 2: KEWAJIBAN PENYEWA */}
+              <div className="bg-white p-6 md:p-7 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3.5">
+                  <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 font-black text-xs flex items-center justify-center">
+                    2
+                  </span>
+                  <h4 className="font-black text-base text-slate-800">
+                    Kewajiban Penyewa
+                  </h4>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    {
+                      title: 'Membayar Sewa Tepat Waktu & Merawat Kamar',
+                      law: 'Pasal 1560 KUH Perdata',
+                      desc: 'Penyewa wajib membayar biaya sewa sesuai jadwal yang disepakati dan menggunakan kamar sebagaimana mestinya layaknya pemilik yang baik.'
+                    },
+                    {
+                      title: 'Bertanggung Jawab atas Kerusakan',
+                      law: 'Pasal 1564 KUH Perdata',
+                      desc: 'Jika terjadi kerusakan pada fasilitas kamar akibat kelalaian atau kesengajaan penyewa, penyewa wajib memperbaiki atau mengganti rugi.'
+                    },
+                    {
+                      title: 'Larangan Menyewakan Kembali / Over-kontrak',
+                      law: 'Pasal 1559 KUH Perdata',
+                      desc: 'Penyewa dilarang memindahtangankan atau menyewakan ulang kamar kos kepada orang lain tanpa izin tertulis/lisan dari pemilik kos.'
+                    },
+                    {
+                      title: 'Wajib Lapor Kependudukan',
+                      law: 'UU Adminduk & Perda Setempat',
+                      desc: 'Penyewa yang berasal dari luar daerah wajib menyerahkan fotokopi KTP/identitas kepada pemilik kos atau pengurus RT/RW setempat untuk pendataan penduduk nonpermanen.'
+                    },
+                    {
+                      title: 'Mematuhi Tata Tertib & Ketertiban Umum',
+                      law: 'Perda & Aturan Internal Kos',
+                      desc: 'Penyewa wajib menaati aturan internal kos (jam malam, aturan tamu, kebersihan) serta tidak menggunakan kamar untuk tindakan melanggar hukum (narkoba, perjudian, keributan yang mengganggu warga).'
+                    }
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl bg-amber-50/40 border border-amber-100 hover:border-amber-200 transition"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <h5 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                          <FileText size={15} className="text-amber-600 flex-shrink-0" />
+                          <span>{item.title}</span>
+                        </h5>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                          {item.law}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed pl-6">
+                        {item.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
