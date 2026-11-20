@@ -10,7 +10,7 @@ function calculateDueDate(anchorDateRaw) {
   let month = now.getMonth();
 
   // Jika hari ini sudah melewati tanggal patokan bulan ini, arahkan ke bulan berikutnya
-  if (now.getDate() > anchorDay) {
+  if (now.getDate() >= anchorDay) {
     month += 1;
     if (month > 11) {
       month = 0;
