@@ -45,28 +45,14 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: 'Pengguna baru berhasil ditambahkan' });
       }
 
-      if (action === 'choose-room') {
-        const roomRes = await sql`SELECT price, number FROM rooms WHERE id = ${roomId}`;
-        if (roomRes.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'Kamar tidak ditemukan' });
-        }
-        const room = roomRes.rows[0];
-
-        await sql`UPDATE users SET room_id = ${roomId} WHERE id = ${userId}`;
-        await sql`UPDATE rooms SET status = 'occupied', resident_id = ${userId} WHERE id = ${roomId}`;
-
-        const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
+const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
         await sql`
           INSERT INTO bills (user_id, nominal, month, due_date, ref_id, payment_method, status)
           VALUES (
             ${userId}, 
             ${room.price}, 
             TO_CHAR(CURRENT_DATE, 'Month YYYY'), 
-            CASE 
-              WHEN EXTRACT(DAY FROM CURRENT_DATE) <= 25 
-              THEN (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '24 days')::DATE
-              ELSE (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' + INTERVAL '24 days')::DATE
-            END, 
+            CURRENT_DATE, 
             ${refId}, 
             'QRIS', 
             'pending'
