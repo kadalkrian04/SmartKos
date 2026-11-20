@@ -45,7 +45,17 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: 'Pengguna baru berhasil ditambahkan' });
       }
 
-const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
+      if (action === 'choose-room') {
+        const roomRes = await sql`SELECT price, number FROM rooms WHERE id = ${roomId}`;
+        if (roomRes.rows.length === 0) {
+          return res.status(404).json({ success: false, message: 'Kamar tidak ditemukan' });
+        }
+        const room = roomRes.rows[0];
+
+        await sql`UPDATE users SET room_id = ${roomId} WHERE id = ${userId}`;
+        await sql`UPDATE rooms SET status = 'occupied', resident_id = ${userId} WHERE id = ${roomId}`;
+
+        const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
         await sql`
           INSERT INTO bills (user_id, nominal, month, due_date, ref_id, payment_method, status)
           VALUES (
@@ -121,7 +131,6 @@ const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
         // Sinkronisasi status kamar jika kamar dipindahkan atau dilepas
         if (room_id !== undefined) {
           const targetRoom = room_id ? parseInt(room_id, 10) : null;
-          // Kosongkan kamar lama user jika sebelumnya menempati kamar lain
           await sql`UPDATE rooms SET status = 'available', resident_id = NULL WHERE resident_id = ${userId} AND id != ${targetRoom || 0}`;
           if (targetRoom) {
             await sql`UPDATE rooms SET status = 'occupied', resident_id = ${userId} WHERE id = ${targetRoom}`;
@@ -155,9 +164,7 @@ const refId = `ADIBKOS-${userId}-${Math.floor(Date.now() / 1000)}`;
       const { id } = req.query;
       if (!id) return res.status(400).json({ success: false, message: 'User ID wajib disertakan' });
 
-      // Lepaskan kamar yang ditempati
       await sql`UPDATE rooms SET status = 'available', resident_id = NULL WHERE resident_id = ${id} OR id IN (SELECT room_id FROM users WHERE id = ${id})`;
-      // Bersihkan tagihan dan hapus pengguna
       await sql`DELETE FROM bills WHERE user_id = ${id}`;
       await sql`DELETE FROM users WHERE id = ${id}`;
 
